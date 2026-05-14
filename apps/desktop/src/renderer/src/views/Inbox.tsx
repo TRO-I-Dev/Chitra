@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import type { Card } from "@chitra/core";
 import { AnimatePresence, motion } from "framer-motion";
 import {
-  CARD_TYPE_STYLES,
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
   getCardStatus,
@@ -82,7 +81,6 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
         <ul className="flex-1 space-y-2 overflow-auto p-3">
           <AnimatePresence initial={false}>
           {filtered.map((card) => {
-            const tone = CARD_TYPE_STYLES[card.type].tone;
             const resolved = resolveCardStyle(card);
             const status = getCardStatus(card);
             const priority = getCardPriority(card);
@@ -100,15 +98,20 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
                    Disable that and use the real HTML5 drag system instead. */
                 drag={false}
                 onClick={() => onOpen(card.id)}
-                className={[
-                  "group relative cursor-grab overflow-hidden rounded-xl border bg-gradient-to-br p-3 pl-4 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing",
-                  tone,
-                ].join(" ")}
+                className="group relative cursor-grab overflow-hidden rounded-xl border p-3 pl-4 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing"
+                style={{
+                  borderColor: `${resolved.accent}55`,
+                  background: `linear-gradient(135deg, ${resolved.accent}1a 0%, rgba(13,13,20,0.6) 70%)`,
+                }}
                 draggable
                 onDragStart={(e) => {
                   const dt = (e as unknown as React.DragEvent<HTMLLIElement>).dataTransfer;
                   if (!dt) return;
                   dt.setData(CARD_DRAG_MIME, card.id);
+                  // Plain-text fallback so other apps can also accept the drop,
+                  // and a second custom slot in case some env strips the
+                  // primary MIME during dragover (Electron quirk).
+                  dt.setData("text/x-chitra-card", card.id);
                   dt.setData("text/plain", card.title);
                   dt.effectAllowed = "copyMove";
                 }}

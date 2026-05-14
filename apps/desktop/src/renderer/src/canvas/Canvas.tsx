@@ -62,6 +62,7 @@ function CanvasInner({
   const updateEdges = useProjectStore((s) => s.updateEdges);
   const addEdge = useProjectStore((s) => s.addEdge);
   const addNodeFromCard = useProjectStore((s) => s.addNodeFromCard);
+  const addCard = useProjectStore((s) => s.addCard);
   const removeNode = useProjectStore((s) => s.removeNode);
   const removeEdge = useProjectStore((s) => s.removeEdge);
   const pushHistory = useProjectStore((s) => s.pushHistory);
@@ -152,24 +153,31 @@ function CanvasInner({
   /* -------- Drag from inbox -------- */
 
   const onDragOver = useCallback((e: React.DragEvent) => {
-    if (Array.from(e.dataTransfer.types).includes(DRAG_MIME)) {
-      e.preventDefault();
-      e.dataTransfer.dropEffect = "move";
-      setIsDragOver(true);
-    }
-  }, []);
+    // Always allow drop while a drag is in progress; we validate on drop.
+    // Some Electron/Chrome combos hide custom-MIME entries in `types` during
+    // dragover, which would prevent preventDefault from firing and break drop.
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (!isDragOver) setIsDragOver(true);
+  }, [isDragOver]);
 
   const onDragLeave = useCallback((e: React.DragEvent) => {
-    // Only clear when leaving the wrapper itself, not crossing into a child.
-    if (e.currentTarget === e.target) setIsDragOver(false);
+    // dragleave fires for every child crossing; check we've actually left
+    // the wrapper using relatedTarget instead of currentTarget===target.
+    const wrapper = wrapperRef.current;
+    const next = e.relatedTarget as globalThis.Node | null;
+    if (wrapper && next && wrapper.contains(next)) return;
+    setIsDragOver(false);
   }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
-      setIsDragOver(false);
-      const cardId = e.dataTransfer.getData(DRAG_MIME);
-      if (!cardId || !rfInstance) return;
       e.preventDefault();
+      setIsDragOver(false);
+      // Try our custom MIME first, then text/plain as fallback.
+      const cardId =
+        e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData("text/x-chitra-card");
+      if (!cardId || !rfInstance) return;
       const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
       addNodeFromCard(cardId, position);
     },
@@ -193,6 +201,27 @@ function CanvasInner({
       });
     },
     [rfInstance, addNodeFromCard],
+  );
+
+  /* -------- Quick-create card on the canvas (double-click empty pane) -------- */
+
+  const onPaneDoubleClick = useCallback(
+    (e: React.MouseEvent) => {
+      if (workspaceMode !== "structure") return;
+      if (!rfInstance) return;
+      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const card = addCard({
+        title: "Untitled",
+        type: "note",
+        body: {
+          type: "doc",
+          content: [{ type: "paragraph", content: [] }],
+        },
+      });
+      addNodeFromCard(card.id, position);
+      onOpenCard?.(card.id);
+    },
+    [workspaceMode, rfInstance, addCard, addNodeFromCard, onOpenCard],
   );
 
   // Publish addAtCenter to the parent so the inbox "+ Canvas" button works.
@@ -224,6 +253,16 @@ function CanvasInner({
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
+      onDoubleClick={(e) => {
+        // Only fire when user double-clicks the empty pane background, not a node.
+        const t = e.target as HTMLElement;
+        if (t && t.classList && (
+          t.classList.contains("react-flow__pane") ||
+          t.classList.contains("react-flow__background")
+        )) {
+          onPaneDoubleClick(e);
+        }
+      }}
     >
       <StudioBackground enabled={themeMode === "studio"} />
       <ReactFlow
@@ -332,9 +371,13 @@ function CanvasInner({
               </span>
             </div>
             <p className="max-w-sm text-sm text-[var(--color-ink-dim)]">
-              Drag a card from the inbox onto this canvas — or hover a card and click
-              <span className="mx-1 rounded bg-white/5 px-1 py-0.5 text-[10px]">+ Canvas</span>.
-              Then drag between the dots on a card&rsquo;s edges to connect them.
+              Drag a card from the inbox onto this canvas, or
+              <span className="mx-1 rounded bg-white/5 px-1.5 py-0.5 text-[10px] uppercase tracking-wider">
+                double&#8209;click
+              </span>
+              the empty area to spawn a new card here. Hover a card and click
+              <span className="mx-1 rounded bg-white/5 px-1 py-0.5 text-[10px]">+ Canvas</span>
+              for a one-click add. Then drag between the dots on a card&rsquo;s edges to connect them.
             </p>
           </div>
         </div>
