@@ -56,6 +56,7 @@ function CanvasInner({
 }): JSX.Element {
   const board = useCurrentBoard();
   const cardMap = useCardMap();
+  const cards = useProjectStore((s) => s.project?.cards ?? []);
   const themeMode = useTheme((s) => s.mode);
   const workspaceMode = useMode((s) => s.mode);
   const updateNodes = useProjectStore((s) => s.updateNodes);
@@ -188,17 +189,20 @@ function CanvasInner({
 
   const addAtCenter = useCallback(
     (cardId: string) => {
-      if (!rfInstance || !wrapperRef.current) return;
-      const rect = wrapperRef.current.getBoundingClientRect();
-      const center = rfInstance.screenToFlowPosition({
-        x: rect.left + rect.width / 2,
-        y: rect.top + rect.height / 2,
-      });
-      // Random small offset so repeated clicks don't stack.
-      addNodeFromCard(cardId, {
-        x: center.x + (Math.random() - 0.5) * 80,
-        y: center.y + (Math.random() - 0.5) * 80,
-      });
+      let position = { x: 0, y: 0 };
+      if (rfInstance && wrapperRef.current) {
+        const rect = wrapperRef.current.getBoundingClientRect();
+        const center = rfInstance.screenToFlowPosition({
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
+        });
+        position = {
+          x: center.x + (Math.random() - 0.5) * 80,
+          y: center.y + (Math.random() - 0.5) * 80,
+        };
+      }
+      addNodeFromCard(cardId, position);
+      window.requestAnimationFrame(() => rfInstance?.fitView({ duration: 260, padding: 0.25 }));
     },
     [rfInstance, addNodeFromCard],
   );
@@ -208,8 +212,9 @@ function CanvasInner({
   const onPaneDoubleClick = useCallback(
     (e: React.MouseEvent) => {
       if (workspaceMode !== "structure") return;
-      if (!rfInstance) return;
-      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+      const position = rfInstance
+        ? rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        : { x: 0, y: 0 };
       const card = addCard({
         title: "Untitled",
         type: "note",
@@ -223,6 +228,33 @@ function CanvasInner({
     },
     [workspaceMode, rfInstance, addCard, addNodeFromCard, onOpenCard],
   );
+
+  const loadMissingCardsToBoard = useCallback(() => {
+    if (!board || cards.length === 0) return;
+    const existingCardIds = new Set(board.nodes.map((node) => node.cardId));
+    const missing = cards.filter((card) => !existingCardIds.has(card.id));
+    if (missing.length === 0) return;
+
+    const base = rfInstance && wrapperRef.current
+      ? (() => {
+          const rect = wrapperRef.current.getBoundingClientRect();
+          return rfInstance.screenToFlowPosition({
+            x: rect.left + rect.width / 2,
+            y: rect.top + rect.height / 2,
+          });
+        })()
+      : { x: 0, y: 0 };
+
+    missing.forEach((card, index) => {
+      const col = index % 3;
+      const row = Math.floor(index / 3);
+      addNodeFromCard(card.id, {
+        x: base.x + (col - 1) * 300,
+        y: base.y + row * 170,
+      });
+    });
+    window.requestAnimationFrame(() => rfInstance?.fitView({ duration: 360, padding: 0.22 }));
+  }, [board, cards, rfInstance, addNodeFromCard]);
 
   // Publish addAtCenter to the parent so the inbox "+ Canvas" button works.
   useEffect(() => {
@@ -254,14 +286,9 @@ function CanvasInner({
       onDragLeave={onDragLeave}
       onDrop={onDrop}
       onDoubleClick={(e) => {
-        // Only fire when user double-clicks the empty pane background, not a node.
-        const t = e.target as HTMLElement;
-        if (t && t.classList && (
-          t.classList.contains("react-flow__pane") ||
-          t.classList.contains("react-flow__background")
-        )) {
-          onPaneDoubleClick(e);
-        }
+        const target = e.target as HTMLElement;
+        if (target.closest(".react-flow__node, .react-flow__edge, .react-flow__controls, .react-flow__minimap")) return;
+        if (target.closest(".react-flow")) onPaneDoubleClick(e);
       }}
     >
       <StudioBackground enabled={themeMode === "studio"} />
@@ -272,6 +299,8 @@ function CanvasInner({
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
+        onDragOver={onDragOver}
+        onDrop={onDrop}
         onInit={setRfInstance}
         onNodeDragStart={() => pushHistory()}
         onNodeDoubleClick={(_e, node) => {
@@ -281,6 +310,7 @@ function CanvasInner({
         proOptions={{ hideAttribution: true }}
         snapToGrid
         snapGrid={[16, 16]}
+        zoomOnDoubleClick={false}
         defaultEdgeOptions={{ type: "smoothstep" }}
         minZoom={0.2}
         maxZoom={2}
@@ -379,6 +409,15 @@ function CanvasInner({
               <span className="mx-1 rounded bg-white/5 px-1 py-0.5 text-[10px]">+ Canvas</span>
               for a one-click add. Then drag between the dots on a card&rsquo;s edges to connect them.
             </p>
+            {cards.length > 0 && (
+              <button
+                type="button"
+                onClick={loadMissingCardsToBoard}
+                className="pointer-events-auto mt-4 rounded-full border border-[var(--color-accent-2)]/50 bg-[var(--color-accent-2)]/10 px-4 py-1.5 text-xs font-semibold text-[var(--color-accent-2)] transition hover:bg-[var(--color-accent-2)]/15"
+              >
+                Load {cards.length} card{cards.length === 1 ? "" : "s"} to studio
+              </button>
+            )}
           </div>
         </div>
       )}

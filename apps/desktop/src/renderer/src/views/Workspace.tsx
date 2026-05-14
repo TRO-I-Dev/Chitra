@@ -12,7 +12,7 @@ import { Settings } from "./Settings.js";
 import { CardInspector } from "./CardInspector.js";
 import { WindowControls } from "./WindowControls.js";
 import { Canvas } from "../canvas/Canvas.js";
-import type { CardType } from "@chitra/core";
+import type { Card, CardType } from "@chitra/core";
 
 export function Workspace(): JSX.Element {
   const project = useProjectStore((s) => s.project);
@@ -20,6 +20,7 @@ export function Workspace(): JSX.Element {
   const dirty = useProjectStore((s) => s.dirty);
   const lastSavedAt = useProjectStore((s) => s.lastSavedAt);
   const addCard = useProjectStore((s) => s.addCard);
+  const addNodeFromCard = useProjectStore((s) => s.addNodeFromCard);
   const removeCard = useProjectStore((s) => s.removeCard);
   const markSaved = useProjectStore((s) => s.markSaved);
   const closeProject = useProjectStore((s) => s.closeProject);
@@ -201,7 +202,10 @@ export function Workspace(): JSX.Element {
         </div>
 
         {/* Center mode strip */}
-        <div className="absolute left-1/2 -translate-x-1/2">
+        <div
+          className="absolute left-1/2 z-20 -translate-x-1/2"
+          style={{ WebkitAppRegion: "no-drag" } as React.CSSProperties}
+        >
           <ModeStrip mode={workMode} onChange={setWorkMode} />
         </div>
         <div className="flex items-center gap-1.5">
@@ -255,7 +259,13 @@ export function Workspace(): JSX.Element {
       <Composer
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
-        onCreate={({ title, type, bodyText }) => addCardWithBody(addCard, { title, type, bodyText })}
+        onCreate={({ title, type, bodyText }) => {
+          const card = addCardWithBody(addCard, { title, type, bodyText });
+          window.requestAnimationFrame(() => {
+            if (addAtCenterRef.current) addAtCenterRef.current(card.id);
+            else addNodeFromCard(card.id, { x: 0, y: 0 });
+          });
+        }}
       />
 
       <Templates open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
@@ -305,8 +315,8 @@ function BarBtn({
 function addCardWithBody(
   addCard: ReturnType<typeof useProjectStore.getState>["addCard"],
   args: { title: string; type: CardType; bodyText: string },
-): void {
-  addCard({
+): Card {
+  return addCard({
     title: args.title,
     type: args.type,
     body: {

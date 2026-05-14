@@ -13,6 +13,11 @@ import type {
 } from "@chitra/core";
 import { type Template, seedToCard } from "@chitra/templates";
 
+type CardPatch = Omit<Partial<Card>, "color" | "icon"> & {
+  color?: string | null;
+  icon?: string | null;
+};
+
 export interface ProjectState {
   /** Loaded project, if any. */
   project: Project | null;
@@ -37,13 +42,8 @@ export interface ProjectState {
    * Patch a card. Pass `null` for an optional field (`color`, `icon`) to
    * clear it without violating exactOptionalPropertyTypes.
    */
-  updateCard: (
-    id: string,
-    patch: Omit<Partial<Card>, "color" | "icon"> & {
-      color?: string | null;
-      icon?: string | null;
-    },
-  ) => void;
+  updateCard: (id: string, patch: CardPatch) => void;
+  updateCardLive: (id: string, patch: CardPatch) => void;
   removeCard: (id: string) => void;
 
   // Board nodes / edges (operate on currentBoardId)
@@ -90,6 +90,39 @@ function patchBoard(project: Project, boardId: string, patch: (b: Board) => Boar
   return { ...project, boards, updatedAt: nowIso() };
 }
 
+function mergeCardPatch(card: Card, patch: CardPatch): Card {
+  const merged = { ...card, ...patch, updatedAt: nowIso() } as Card & Record<string, unknown>;
+  for (const key of Object.keys(patch) as Array<keyof CardPatch>) {
+    if ((patch as Record<string, unknown>)[key as string] === null) {
+      delete merged[key as string];
+    }
+  }
+  return merged as Card;
+}
+
+function normalizeProjectForWorkspace(project: Project): Project {
+  const liveCardIds = new Set(project.cards.map((card) => card.id));
+  let changed = false;
+  const boards = project.boards.map((board) => {
+    const nodes = board.nodes.filter((node) => liveCardIds.has(node.cardId));
+    const nodeIds = new Set(nodes.map((node) => node.id));
+    const edges = board.edges.filter((edge) => nodeIds.has(edge.source) && nodeIds.has(edge.target));
+    if (nodes.length === board.nodes.length && edges.length === board.edges.length) return board;
+    changed = true;
+    return { ...board, nodes, edges };
+  });
+
+  if (boards.length > 0) {
+    return changed ? { ...project, boards, updatedAt: nowIso() } : project;
+  }
+
+  return {
+    ...project,
+    boards: [{ id: nanoid(), name: "Main board", nodes: [], edges: [] }],
+    updatedAt: nowIso(),
+  };
+}
+
 export const useProjectStore = create<ProjectState>((set, get) => {
   function snapshot(): void {
     const cur = get().project;
@@ -109,16 +142,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
   _past: [],
   _future: [],
 
-  setProject: (project, path) =>
+  setProject: (project, path) => {
+    const normalized = normalizeProjectForWorkspace(project);
+    const migrated = normalized !== project;
     set({
-      project,
+      project: normalized,
       path,
-      dirty: false,
-      lastSavedAt: path ? project.updatedAt : null,
-      currentBoardId: project.boards[0]?.id ?? null,
+      dirty: migrated,
+      lastSavedAt: !migrated && path ? normalized.updatedAt : null,
+      currentBoardId: normalized.boards[0]?.id ?? null,
       _past: [],
       _future: [],
-    }),
+    });
+  },
 
   closeProject: () =>
     set({
@@ -164,17 +200,16 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       if (!s.project) return s;
       const cards = s.project.cards.map((c) => {
         if (c.id !== id) return c;
-        const merged = { ...c, ...patch, updatedAt: nowIso() } as Card & Record<string, unknown>;
-        // Allow callers to clear optional fields by passing `null` — strip
-        // them from the result so the card stays valid under
-        // exactOptionalPropertyTypes.
-        for (const key of Object.keys(patch) as Array<keyof typeof patch>) {
-          if ((patch as Record<string, unknown>)[key as string] === null) {
-            delete merged[key as string];
-          }
-        }
-        return merged as Card;
+        return mergeCardPatch(c, patch);
       });
+      return { project: { ...s.project, cards, updatedAt: nowIso() }, dirty: true };
+    });
+  },
+
+  updateCardLive: (id, patch) => {
+    set((s) => {
+      if (!s.project) return s;
+      const cards = s.project.cards.map((c) => (c.id === id ? mergeCardPatch(c, patch) : c));
       return { project: { ...s.project, cards, updatedAt: nowIso() }, dirty: true };
     });
   },

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Card, CardType, RichDoc } from "@chitra/core";
 import {
@@ -45,7 +45,9 @@ export function CardInspector({
   onClose: () => void;
 }): JSX.Element {
   const updateCard = useProjectStore((s) => s.updateCard);
+  const updateCardLive = useProjectStore((s) => s.updateCardLive);
   const removeCard = useProjectStore((s) => s.removeCard);
+  const skipLiveUpdate = useRef(false);
   const [title, setTitle] = useState("");
   const [bodyText, setBody] = useState("");
   const [type, setType] = useState<CardType>("note");
@@ -57,6 +59,7 @@ export function CardInspector({
 
   useEffect(() => {
     if (!card) return;
+    skipLiveUpdate.current = true;
     setTitle(card.title);
     setBody(bodyToText(card.body));
     setType(card.type);
@@ -65,7 +68,7 @@ export function CardInspector({
     setIcon(card.icon ?? null);
     setStatus(getCardStatus(card));
     setPriority(getCardPriority(card));
-  }, [card]);
+  }, [card?.id]);
 
   if (!card) {
     return (
@@ -73,13 +76,13 @@ export function CardInspector({
     );
   }
 
-  const save = (): void => {
+  const buildPatch = (): Parameters<typeof updateCard>[1] => {
     const meta: Record<string, unknown> = {
       ...((card.metadata as Record<string, unknown>) ?? {}),
     };
     if (status) meta["status"] = status; else delete meta["status"];
     if (priority) meta["priority"] = priority; else delete meta["priority"];
-    updateCard(card.id, {
+    return {
       title: title.trim() || "Untitled",
       type,
       body: textToBody(bodyText),
@@ -87,7 +90,11 @@ export function CardInspector({
       metadata: meta,
       color: accent ?? null,
       icon: icon ?? null,
-    });
+    };
+  };
+
+  const save = (): void => {
+    updateCard(card.id, buildPatch());
     onClose();
   };
 
@@ -100,6 +107,19 @@ export function CardInspector({
     icon !== (card.icon ?? null) ||
     status !== getCardStatus(card) ||
     priority !== getCardPriority(card);
+
+  useEffect(() => {
+    if (!card) return;
+    if (skipLiveUpdate.current) {
+      skipLiveUpdate.current = false;
+      return;
+    }
+    if (!dirty) return;
+    const id = window.setTimeout(() => updateCardLive(card.id, buildPatch()), 120);
+    return () => window.clearTimeout(id);
+    // `buildPatch` intentionally reads the current local form state.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [card?.id, dirty, title, bodyText, type, tags, accent, icon, status, priority, updateCardLive]);
 
   return (
     <AnimatePresence>

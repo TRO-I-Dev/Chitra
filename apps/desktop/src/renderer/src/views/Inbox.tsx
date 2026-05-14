@@ -145,7 +145,7 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                    <div className="flex items-center gap-1">
                       {onAddToCanvas && (
                         <button
                           type="button"
