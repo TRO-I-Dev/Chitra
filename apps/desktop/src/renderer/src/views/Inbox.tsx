@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import type { Card } from "@chitra/core";
-import { AnimatePresence, motion } from "framer-motion";
+import { AnimatePresence } from "framer-motion";
 import {
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
@@ -87,16 +87,8 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
             const statusDef = status ? STATUS_OPTIONS.find((s) => s.value === status) : null;
             const priorityDef = priority ? PRIORITY_OPTIONS.find((p) => p.value === priority) : null;
             return (
-              <motion.li
+              <li
                 key={card.id}
-                layout
-                initial={{ opacity: 0, y: -6, scale: 0.98 }}
-                animate={{ opacity: 1, y: 0, scale: 1 }}
-                exit={{ opacity: 0, x: -16, scale: 0.96 }}
-                transition={{ type: "spring", stiffness: 360, damping: 26 }}
-                /* framer-motion intercepts onDragStart for its own drag gestures.
-                   Disable that and use the real HTML5 drag system instead. */
-                drag={false}
                 onClick={() => onOpen(card.id)}
                 className="group relative cursor-grab overflow-hidden rounded-xl border p-3 pl-4 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing"
                 style={{
@@ -193,7 +185,7 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
                     )}
                   </div>
                 </div>
-              </motion.li>
+              </li>
             );
           })}
           </AnimatePresence>
