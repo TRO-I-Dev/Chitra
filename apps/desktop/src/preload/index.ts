@@ -49,6 +49,20 @@ const api = {
       ipcRenderer.removeListener("menu", listener);
     };
   },
+  /** Window control bridge for the custom (frameless) title bar. */
+  win: {
+    minimize:    (): Promise<void>    => ipcRenderer.invoke("win:minimize") as Promise<void>,
+    maxToggle:   (): Promise<boolean> => ipcRenderer.invoke("win:maxToggle") as Promise<boolean>,
+    close:       (): Promise<void>    => ipcRenderer.invoke("win:close") as Promise<void>,
+    isMaximized: (): Promise<boolean> => ipcRenderer.invoke("win:isMaximized") as Promise<boolean>,
+    onMaximizeChange: (handler: (isMax: boolean) => void): (() => void) => {
+      const listener = (_e: unknown, isMax: boolean): void => handler(isMax);
+      ipcRenderer.on("window:maximized", listener);
+      return () => {
+        ipcRenderer.removeListener("window:maximized", listener);
+      };
+    },
+  },
 } as const;
 
 export type ChitraApi = typeof api;

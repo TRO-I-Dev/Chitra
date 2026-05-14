@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useProjectStore } from "./state/projectStore.js";
 import { Welcome } from "./views/Welcome.js";
 import { Workspace } from "./views/Workspace.js";
@@ -7,8 +7,40 @@ import { buildSampleProject } from "./samples/sampleProject.js";
 
 export function App(): JSX.Element {
   const project = useProjectStore((s) => s.project);
+  const dirty = useProjectStore((s) => s.dirty);
   const setProject = useProjectStore((s) => s.setProject);
   const [error, setError] = useState<string | null>(null);
+
+  // Block window close while there are unsaved changes — main process picks
+  // this up via `will-prevent-unload` and shows the confirm dialog.
+  useEffect(() => {
+    const handler = (e: BeforeUnloadEvent): void => {
+      if (dirty) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  // App-level menu actions that work regardless of whether a project is open.
+  useEffect(() => {
+    const off = window.chitra.onMenu(async (action) => {
+      try {
+        if (action === "new-project") {
+          const p = await window.chitra.projectNew({ name: "Untitled project" });
+          setProject(p, null);
+        } else if (action === "open-project") {
+          const res = await window.chitra.projectOpen({});
+          if (res) setProject(res.project, res.path);
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e));
+      }
+    });
+    return off;
+  }, [setProject]);
 
   async function handleCreate(name: string): Promise<void> {
     setError(null);

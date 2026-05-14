@@ -9,6 +9,7 @@ import { Templates } from "./Templates.js";
 import { ExportMenu } from "./ExportMenu.js";
 import { Settings } from "./Settings.js";
 import { CardInspector } from "./CardInspector.js";
+import { WindowControls } from "./WindowControls.js";
 import { Canvas } from "../canvas/Canvas.js";
 import type { CardType } from "@chitra/core";
 
@@ -200,6 +201,7 @@ export function Workspace(): JSX.Element {
             Save as…
           </BarBtn>
           <BarBtn onClick={closeProject}>Close</BarBtn>
+          <span className="ml-1"><WindowControls /></span>
         </div>
       </header>
 

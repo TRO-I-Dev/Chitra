@@ -1,3 +1,4 @@
+import { useMemo, useState } from "react";
 import type { Card } from "@chitra/core";
 import { AnimatePresence, motion } from "framer-motion";
 import { CARD_TYPE_STYLES } from "../cardStyles.js";
@@ -11,6 +12,19 @@ interface Props {
 }
 
 export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Element {
+  const [query, setQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return cards;
+    return cards.filter((c) => {
+      if (c.title.toLowerCase().includes(q)) return true;
+      if (c.type.toLowerCase().includes(q)) return true;
+      if (c.tags.some((t) => t.toLowerCase().includes(q))) return true;
+      return flattenBody(c).toLowerCase().includes(q);
+    });
+  }, [cards, query]);
+
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-white/5 bg-[#0d0d14]">
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
@@ -18,7 +32,13 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Eleme
           <div className="text-[10px] uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
             Inbox
           </div>
-          <div className="text-sm font-semibold">{cards.length} cards</div>
+          <div className="text-sm font-semibold">
+            {filtered.length}
+            {filtered.length !== cards.length && (
+              <span className="text-[var(--color-ink-dim)]"> / {cards.length}</span>
+            )}{" "}
+            cards
+          </div>
         </div>
         <button
           type="button"
@@ -30,15 +50,30 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Eleme
         </button>
       </div>
 
+      {cards.length > 0 && (
+        <div className="border-b border-white/5 px-3 py-2">
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search title, body, type, tag…"
+            className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs outline-none placeholder:text-[var(--color-ink-dim)]/60 focus:border-[var(--color-accent)]/60"
+          />
+        </div>
+      )}
+
       {cards.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center px-6 text-center text-sm text-[var(--color-ink-dim)]">
           <div className="mb-2 text-3xl">✎</div>
           <p>Press <kbd className="rounded bg-white/5 px-1.5 py-0.5">Ctrl+N</kbd> to compose your first card.</p>
         </div>
+      ) : filtered.length === 0 ? (
+        <div className="flex flex-1 items-center justify-center px-6 text-center text-xs text-[var(--color-ink-dim)]">
+          No cards match “{query}”.
+        </div>
       ) : (
         <ul className="flex-1 space-y-2 overflow-auto p-3">
           <AnimatePresence initial={false}>
-          {cards.map((card) => {
+          {filtered.map((card) => {
             const style = CARD_TYPE_STYLES[card.type];
             return (
               <motion.li
@@ -66,6 +101,9 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Eleme
                     <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-widest opacity-80">
                       <span>{style.emoji}</span>
                       <span>{style.label}</span>
+                      {card.tags.length > 0 && (
+                        <span className="ml-1 truncate opacity-70">· {card.tags.join(", ")}</span>
+                      )}
                     </div>
                     <div className="truncate text-sm font-semibold">{card.title}</div>
                     <div className="mt-1 line-clamp-2 text-xs opacity-70">

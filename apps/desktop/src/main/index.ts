@@ -54,6 +54,26 @@ function createMainWindow(): void {
     mainWindow = null;
   });
 
+  // Re-emit maximise state changes so the custom title bar can update.
+  const emitMaxState = (): void => {
+    mainWindow?.webContents.send("window:maximized", mainWindow?.isMaximized() ?? false);
+  };
+  mainWindow.on("maximize", emitMaxState);
+  mainWindow.on("unmaximize", emitMaxState);
+
+  // Confirm-on-close when the renderer reports unsaved changes.
+  mainWindow.webContents.on("will-prevent-unload", (event) => {
+    const choice = dialog.showMessageBoxSync(mainWindow!, {
+      type: "question",
+      buttons: ["Discard changes", "Cancel"],
+      defaultId: 1,
+      cancelId: 1,
+      title: "Unsaved changes",
+      message: "You have unsaved changes. Close without saving?",
+    });
+    if (choice === 0) event.preventDefault();
+  });
+
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
     return { action: "deny" };
@@ -258,6 +278,17 @@ function registerAllHandlers(): void {
       ...(boardId !== undefined ? { boardId } : {}),
     });
   });
+
+  // Window controls (un-validated, fire-and-forget).
+  ipcMain.handle("win:minimize",  () => { mainWindow?.minimize(); });
+  ipcMain.handle("win:maxToggle", () => {
+    if (!mainWindow) return false;
+    if (mainWindow.isMaximized()) mainWindow.unmaximize();
+    else mainWindow.maximize();
+    return mainWindow.isMaximized();
+  });
+  ipcMain.handle("win:close",     () => { mainWindow?.close(); });
+  ipcMain.handle("win:isMaximized", () => mainWindow?.isMaximized() ?? false);
 }
 
 /* ------------------------------------------------------------------ *
