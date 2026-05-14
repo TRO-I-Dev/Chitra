@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import { useProjectStore } from "../state/projectStore.js";
+import { useTheme } from "../state/theme.js";
 import { Inbox } from "./Inbox.js";
 import { Composer } from "./Composer.js";
 import { Canvas } from "../canvas/Canvas.js";
@@ -14,6 +16,8 @@ export function Workspace(): JSX.Element {
   const removeCard = useProjectStore((s) => s.removeCard);
   const markSaved = useProjectStore((s) => s.markSaved);
   const closeProject = useProjectStore((s) => s.closeProject);
+  const themeMode = useTheme((s) => s.mode);
+  const toggleTheme = useTheme((s) => s.toggle);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -79,12 +83,24 @@ export function Workspace(): JSX.Element {
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-2)]" />
           <span className="font-semibold text-[var(--color-ink)]">{project.name}</span>
           <span className="opacity-60">— {fileLabel}</span>
-          {dirty && <span className="text-[var(--color-accent-2)]">● unsaved</span>}
+          {dirty && (
+            <motion.span
+              className="text-[var(--color-accent-2)]"
+              animate={{ opacity: [0.4, 1, 0.4] }}
+              transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+            >
+              ● unsaved
+            </motion.span>
+          )}
           {!dirty && lastSavedAt && (
             <span className="opacity-60">saved {timeAgo(lastSavedAt)}</span>
           )}
         </div>
         <div className="flex items-center gap-1.5">
+          <BarBtn onClick={toggleTheme}>
+            {themeMode === "studio" ? "◐ Calm" : "◑ Studio"}
+          </BarBtn>
+          <span className="mx-1 h-4 w-px bg-white/10" />
           <BarBtn onClick={save} disabled={saving || !dirty}>
             Save
           </BarBtn>

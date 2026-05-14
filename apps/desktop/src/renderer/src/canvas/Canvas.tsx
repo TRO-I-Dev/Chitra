@@ -20,9 +20,11 @@ import "@xyflow/react/dist/style.css";
 
 import type { BoardEdge, BoardNode, EdgeKind } from "@chitra/core";
 import { useCardMap, useCurrentBoard, useProjectStore } from "../state/projectStore.js";
+import { useTheme } from "../state/theme.js";
 import { CardNode, type CardNodeData } from "./CardNode.js";
 import { EDGE_KINDS, EDGE_STYLES } from "./edgeStyles.js";
 import { autoLayout, type LayoutDirection } from "./autoLayout.js";
+import { StudioBackground } from "./StudioBackground.js";
 
 const nodeTypes: NodeTypes = { card: CardNode };
 
@@ -39,6 +41,7 @@ export function Canvas(): JSX.Element {
 function CanvasInner(): JSX.Element {
   const board = useCurrentBoard();
   const cardMap = useCardMap();
+  const themeMode = useTheme((s) => s.mode);
   const updateNodes = useProjectStore((s) => s.updateNodes);
   const updateEdges = useProjectStore((s) => s.updateEdges);
   const addEdge = useProjectStore((s) => s.addEdge);
@@ -167,10 +170,11 @@ function CanvasInner(): JSX.Element {
   return (
     <div
       ref={wrapperRef}
-      className="studio-bg relative h-full w-full"
+      className="relative h-full w-full overflow-hidden bg-[#0b0b10]"
       onDragOver={onDragOver}
       onDrop={onDrop}
     >
+      <StudioBackground enabled={themeMode === "studio"} />
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}

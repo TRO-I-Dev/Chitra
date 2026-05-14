@@ -1,4 +1,5 @@
 import type { Card } from "@chitra/core";
+import { AnimatePresence, motion } from "framer-motion";
 import { CARD_TYPE_STYLES } from "../cardStyles.js";
 import { CARD_DRAG_MIME } from "../canvas/Canvas.js";
 
@@ -35,15 +36,23 @@ export function Inbox({ cards, onAddClick, onDelete }: Props): JSX.Element {
         </div>
       ) : (
         <ul className="flex-1 space-y-2 overflow-auto p-3">
+          <AnimatePresence initial={false}>
           {cards.map((card) => {
             const style = CARD_TYPE_STYLES[card.type];
             return (
-              <li
+              <motion.li
                 key={card.id}
+                layout
+                initial={{ opacity: 0, y: -6, scale: 0.98 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, x: -16, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 360, damping: 26 }}
                 draggable
                 onDragStart={(e) => {
-                  e.dataTransfer.setData(CARD_DRAG_MIME, card.id);
-                  e.dataTransfer.effectAllowed = "move";
+                  // framer-motion's MotionEvent doesn't expose dataTransfer typings; cast.
+                  const native = e as unknown as React.DragEvent;
+                  native.dataTransfer.setData(CARD_DRAG_MIME, card.id);
+                  native.dataTransfer.effectAllowed = "move";
                 }}
                 className={[
                   "group cursor-grab rounded-xl border bg-gradient-to-br p-3 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing",
@@ -70,9 +79,10 @@ export function Inbox({ cards, onAddClick, onDelete }: Props): JSX.Element {
                     ✕
                   </button>
                 </div>
-              </li>
+              </motion.li>
             );
           })}
+          </AnimatePresence>
         </ul>
       )}
     </aside>

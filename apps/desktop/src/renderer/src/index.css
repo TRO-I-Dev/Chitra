@@ -50,3 +50,40 @@ body,
 .titlebar input {
   -webkit-app-region: no-drag;
 }
+
+/* React Flow chrome overrides for the studio dark theme */
+.react-flow,
+.react-flow__renderer,
+.react-flow__pane,
+.react-flow__viewport {
+  background: transparent !important;
+}
+.react-flow__controls {
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+  border-radius: 12px !important;
+  overflow: hidden;
+}
+.react-flow__controls-button {
+  background: #0d0d14 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+  color: #e7e7ee !important;
+  fill: #e7e7ee !important;
+}
+.react-flow__controls-button:hover {
+  background: #15151d !important;
+}
+.react-flow__minimap {
+  border-radius: 10px !important;
+  overflow: hidden;
+}
+.react-flow__attribution {
+  display: none !important;
+}
+.react-flow__edge-text {
+  font-family: var(--font-sans) !important;
+}
+
+/* Calm theme variant — flatter, no animation */
+html[data-theme="calm"] body {
+  background: #0c0c12;
+}

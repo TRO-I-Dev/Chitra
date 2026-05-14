@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
 import type { RecentProject } from "@chitra/core";
 
 interface Props {
@@ -18,7 +19,12 @@ export function Welcome({ onCreate, onOpen }: Props): JSX.Element {
     <div className="studio-bg dot-grid flex h-full w-full items-center justify-center p-12">
       <div className="grid w-full max-w-5xl grid-cols-5 gap-8">
         {/* Hero / create */}
-        <section className="col-span-3 rounded-2xl border border-white/5 bg-white/[0.03] p-10 backdrop-blur-md">
+        <motion.section
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 220, damping: 24 }}
+          className="col-span-3 rounded-2xl border border-white/5 bg-white/[0.03] p-10 backdrop-blur-md"
+        >
           <div className="mb-1 text-xs uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
             Chitra Studio
           </div>
@@ -63,10 +69,15 @@ export function Welcome({ onCreate, onOpen }: Props): JSX.Element {
           >
             …or open an existing .chitra file
           </button>
-        </section>
+        </motion.section>
 
         {/* Recents */}
-        <aside className="col-span-2 rounded-2xl border border-white/5 bg-white/[0.02] p-6">
+        <motion.aside
+          initial={{ opacity: 0, y: 16 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.08, type: "spring", stiffness: 220, damping: 24 }}
+          className="col-span-2 rounded-2xl border border-white/5 bg-white/[0.02] p-6"
+        >
           <div className="mb-4 flex items-center justify-between">
             <h2 className="text-sm font-semibold tracking-wide">Recent</h2>
             {recents.length > 0 && (
@@ -102,7 +113,7 @@ export function Welcome({ onCreate, onOpen }: Props): JSX.Element {
               ))}
             </ul>
           )}
-        </aside>
+        </motion.aside>
       </div>
     </div>
   );

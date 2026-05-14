@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { compose, type ClassifierSuggestion } from "@chitra/composer";
 import type { CardType } from "@chitra/core";
 import { CARD_TYPES, CARD_TYPE_STYLES } from "../cardStyles.js";
@@ -47,16 +48,26 @@ export function Composer({ open, onClose, onCreate }: Props): JSX.Element | null
   };
 
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
-      className="fixed inset-0 z-40 flex items-start justify-center bg-black/60 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="mt-24 w-[min(720px,92vw)] overflow-hidden rounded-2xl border border-white/10 bg-[#13131a] shadow-2xl shadow-black/60"
-        onClick={(e) => e.stopPropagation()}
+    <AnimatePresence>
+      <motion.div
+        key="composer"
+        role="dialog"
+        aria-modal="true"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+        className="fixed inset-0 z-40 flex items-start justify-center bg-black/60 backdrop-blur-sm"
+        onClick={onClose}
       >
+        <motion.div
+          initial={{ y: 24, scale: 0.96, opacity: 0 }}
+          animate={{ y: 0, scale: 1, opacity: 1 }}
+          exit={{ y: 12, scale: 0.98, opacity: 0 }}
+          transition={{ type: "spring", stiffness: 320, damping: 28 }}
+          className="mt-24 w-[min(720px,92vw)] overflow-hidden rounded-2xl border border-white/10 bg-[#13131a] shadow-2xl shadow-black/60"
+          onClick={(e) => e.stopPropagation()}
+        >
         <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
           <div className="text-xs uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
             Compose card
@@ -147,7 +158,8 @@ export function Composer({ open, onClose, onCreate }: Props): JSX.Element | null
             </button>
           </div>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
+    </AnimatePresence>
   );
 }
