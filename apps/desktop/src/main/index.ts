@@ -41,7 +41,7 @@ function createMainWindow(): void {
     titleBarStyle: "hiddenInset",
     title: "Chitra",
     webPreferences: {
-      preload: join(__dirname, "../preload/index.mjs"),
+      preload: join(__dirname, "../preload/index.js"),
       sandbox: true,
       contextIsolation: true,
       nodeIntegration: false,
@@ -81,9 +81,21 @@ function createMainWindow(): void {
 
   if (process.env["ELECTRON_RENDERER_URL"]) {
     void mainWindow.loadURL(process.env["ELECTRON_RENDERER_URL"]);
+    mainWindow.webContents.openDevTools({ mode: "detach" });
   } else {
     void mainWindow.loadFile(join(__dirname, "../renderer/index.html"));
   }
+
+  // Surface renderer load failures to the terminal so blank windows are diagnosable.
+  mainWindow.webContents.on("did-fail-load", (_e, code, desc, url) => {
+    console.error(`[renderer] did-fail-load ${code} ${desc} ${url}`);
+  });
+  mainWindow.webContents.on("render-process-gone", (_e, details) => {
+    console.error(`[renderer] render-process-gone`, details);
+  });
+  mainWindow.webContents.on("preload-error", (_e, preloadPath, err) => {
+    console.error(`[renderer] preload-error ${preloadPath}`, err);
+  });
 }
 
 /* ------------------------------------------------------------------ *

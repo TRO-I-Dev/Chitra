@@ -18,10 +18,15 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ["@chitra/core", "@chitra/composer", "@chitra/templates", "@chitra/exports"] })],
+    // No externalizeDepsPlugin: sandboxed preloads cannot require() from
+    // node_modules — every dep (zod, @chitra/*) must be bundled into the
+    // preload script itself.
     build: {
+      // Sandboxed preloads must be CommonJS — Electron does not support ESM
+      // preload scripts when `sandbox: true`. Force CJS output (.js, not .mjs).
       rollupOptions: {
         input: { index: resolve(__dirname, "src/preload/index.ts") },
+        output: { format: "cjs", entryFileNames: "[name].js" },
       },
     },
   },
