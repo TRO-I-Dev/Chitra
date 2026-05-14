@@ -8,7 +8,7 @@ import {
   getCardPriority,
   resolveCardStyle,
 } from "../cardStyles.js";
-import { CARD_DRAG_MIME } from "../canvas/Canvas.js";
+import { CARD_DRAG_MIME, clearDraggedCardId, setDraggedCardId } from "../dragState.js";
 
 interface Props {
   cards: Card[];
@@ -105,6 +105,7 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
                 }}
                 draggable
                 onDragStart={(e) => {
+                  setDraggedCardId(card.id);
                   const dt = (e as unknown as React.DragEvent<HTMLLIElement>).dataTransfer;
                   if (!dt) return;
                   dt.setData(CARD_DRAG_MIME, card.id);
@@ -115,6 +116,7 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
                   dt.setData("text/plain", card.title);
                   dt.effectAllowed = "copyMove";
                 }}
+                onDragEnd={() => clearDraggedCardId(card.id)}
               >
                 {/* Accent left bar */}
                 <span

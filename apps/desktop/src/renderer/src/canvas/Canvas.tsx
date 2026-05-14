@@ -27,11 +27,9 @@ import { EDGE_KINDS, EDGE_STYLES } from "./edgeStyles.js";
 import { autoLayout, type LayoutDirection } from "./autoLayout.js";
 import { StudioBackground } from "./StudioBackground.js";
 import { SketchOverlay } from "./SketchOverlay.js";
+import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 
 const nodeTypes: NodeTypes = { card: CardNode };
-
-const DRAG_MIME = "application/x-chitra-card";
-export const CARD_DRAG_MIME = DRAG_MIME;
 
 export function Canvas({
   onOpenCard,
@@ -174,13 +172,20 @@ function CanvasInner({
   const onDrop = useCallback(
     (e: React.DragEvent) => {
       e.preventDefault();
+      e.stopPropagation();
       setIsDragOver(false);
       // Try our custom MIME first, then text/plain as fallback.
       const cardId =
-        e.dataTransfer.getData(DRAG_MIME) || e.dataTransfer.getData("text/x-chitra-card");
-      if (!cardId || !rfInstance) return;
-      const position = rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+        e.dataTransfer.getData(CARD_DRAG_MIME) ||
+        e.dataTransfer.getData("text/x-chitra-card") ||
+        getDraggedCardId();
+      if (!cardId) return;
+      const position = rfInstance
+        ? rfInstance.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+        : { x: 0, y: 0 };
       addNodeFromCard(cardId, position);
+      clearDraggedCardId(cardId);
+      window.requestAnimationFrame(() => rfInstance?.fitView({ duration: 260, padding: 0.25 }));
     },
     [rfInstance, addNodeFromCard],
   );
@@ -282,6 +287,8 @@ function CanvasInner({
     <div
       ref={wrapperRef}
       className="relative h-full w-full overflow-hidden bg-[#0b0b10]"
+      onDragOverCapture={onDragOver}
+      onDropCapture={onDrop}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}
       onDrop={onDrop}
