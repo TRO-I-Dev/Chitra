@@ -33,7 +33,17 @@ export interface ProjectState {
 
   // Cards
   addCard: (input: { title: string; body: RichDoc; type: CardType }) => Card;
-  updateCard: (id: string, patch: Partial<Card>) => void;
+  /**
+   * Patch a card. Pass `null` for an optional field (`color`, `icon`) to
+   * clear it without violating exactOptionalPropertyTypes.
+   */
+  updateCard: (
+    id: string,
+    patch: Omit<Partial<Card>, "color" | "icon"> & {
+      color?: string | null;
+      icon?: string | null;
+    },
+  ) => void;
   removeCard: (id: string) => void;
 
   // Board nodes / edges (operate on currentBoardId)
@@ -152,9 +162,19 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     snapshot();
     set((s) => {
       if (!s.project) return s;
-      const cards = s.project.cards.map((c) =>
-        c.id === id ? { ...c, ...patch, updatedAt: nowIso() } : c,
-      );
+      const cards = s.project.cards.map((c) => {
+        if (c.id !== id) return c;
+        const merged = { ...c, ...patch, updatedAt: nowIso() } as Card & Record<string, unknown>;
+        // Allow callers to clear optional fields by passing `null` — strip
+        // them from the result so the card stays valid under
+        // exactOptionalPropertyTypes.
+        for (const key of Object.keys(patch) as Array<keyof typeof patch>) {
+          if ((patch as Record<string, unknown>)[key as string] === null) {
+            delete merged[key as string];
+          }
+        }
+        return merged as Card;
+      });
       return { project: { ...s.project, cards, updatedAt: nowIso() }, dirty: true };
     });
   },

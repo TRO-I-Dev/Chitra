@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Background,
   BackgroundVariant,
@@ -31,16 +31,29 @@ import { SketchOverlay } from "./SketchOverlay.js";
 const nodeTypes: NodeTypes = { card: CardNode };
 
 const DRAG_MIME = "application/x-chitra-card";
+export const CARD_DRAG_MIME = DRAG_MIME;
 
-export function Canvas({ onOpenCard }: { onOpenCard?: (cardId: string) => void } = {}): JSX.Element {
+export function Canvas({
+  onOpenCard,
+  registerAddAtCenter,
+}: {
+  onOpenCard?: (cardId: string) => void;
+  registerAddAtCenter?: (fn: ((cardId: string) => void) | null) => void;
+} = {}): JSX.Element {
   return (
     <ReactFlowProvider>
-      <CanvasInner onOpenCard={onOpenCard} />
+      <CanvasInner onOpenCard={onOpenCard} registerAddAtCenter={registerAddAtCenter} />
     </ReactFlowProvider>
   );
 }
 
-function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }): JSX.Element {
+function CanvasInner({
+  onOpenCard,
+  registerAddAtCenter,
+}: {
+  onOpenCard?: (cardId: string) => void;
+  registerAddAtCenter?: (fn: ((cardId: string) => void) | null) => void;
+}): JSX.Element {
   const board = useCurrentBoard();
   const cardMap = useCardMap();
   const themeMode = useTheme((s) => s.mode);
@@ -56,6 +69,7 @@ function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }):
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
   const [edgeKind, setEdgeKind] = useState<EdgeKind>("flows-to");
+  const [isDragOver, setIsDragOver] = useState(false);
 
   /* -------- map domain → React Flow shapes -------- */
   const rfNodes: Node[] = useMemo(() => {
@@ -141,11 +155,18 @@ function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }):
     if (Array.from(e.dataTransfer.types).includes(DRAG_MIME)) {
       e.preventDefault();
       e.dataTransfer.dropEffect = "move";
+      setIsDragOver(true);
     }
+  }, []);
+
+  const onDragLeave = useCallback((e: React.DragEvent) => {
+    // Only clear when leaving the wrapper itself, not crossing into a child.
+    if (e.currentTarget === e.target) setIsDragOver(false);
   }, []);
 
   const onDrop = useCallback(
     (e: React.DragEvent) => {
+      setIsDragOver(false);
       const cardId = e.dataTransfer.getData(DRAG_MIME);
       if (!cardId || !rfInstance) return;
       e.preventDefault();
@@ -154,6 +175,31 @@ function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }):
     },
     [rfInstance, addNodeFromCard],
   );
+
+  /* -------- "Add to canvas" fallback (button on inbox cards) -------- */
+
+  const addAtCenter = useCallback(
+    (cardId: string) => {
+      if (!rfInstance || !wrapperRef.current) return;
+      const rect = wrapperRef.current.getBoundingClientRect();
+      const center = rfInstance.screenToFlowPosition({
+        x: rect.left + rect.width / 2,
+        y: rect.top + rect.height / 2,
+      });
+      // Random small offset so repeated clicks don't stack.
+      addNodeFromCard(cardId, {
+        x: center.x + (Math.random() - 0.5) * 80,
+        y: center.y + (Math.random() - 0.5) * 80,
+      });
+    },
+    [rfInstance, addNodeFromCard],
+  );
+
+  // Publish addAtCenter to the parent so the inbox "+ Canvas" button works.
+  useEffect(() => {
+    registerAddAtCenter?.(addAtCenter);
+    return () => registerAddAtCenter?.(null);
+  }, [addAtCenter, registerAddAtCenter]);
 
   /* -------- Auto-layout -------- */
 
@@ -176,6 +222,7 @@ function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }):
       ref={wrapperRef}
       className="relative h-full w-full overflow-hidden bg-[#0b0b10]"
       onDragOver={onDragOver}
+      onDragLeave={onDragLeave}
       onDrop={onDrop}
     >
       <StudioBackground enabled={themeMode === "studio"} />
@@ -277,11 +324,38 @@ function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }):
       {board.nodes.length === 0 && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <div className="mb-3 text-5xl opacity-30">◇ ◆ ◇</div>
+            <div className="mb-4 flex items-center justify-center gap-3 text-3xl opacity-30">
+              <span>◇</span>
+              <span className="animate-pulse">←</span>
+              <span className="rounded-md border border-dashed border-white/20 px-2 py-1 text-sm uppercase tracking-widest">
+                Inbox
+              </span>
+            </div>
             <p className="max-w-sm text-sm text-[var(--color-ink-dim)]">
-              Drag a card from the inbox onto the canvas, then drag between the dots on
-              the edges of cards to connect them.
+              Drag a card from the inbox onto this canvas — or hover a card and click
+              <span className="mx-1 rounded bg-white/5 px-1 py-0.5 text-[10px]">+ Canvas</span>.
+              Then drag between the dots on a card&rsquo;s edges to connect them.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Drop indicator while dragging from the inbox */}
+      {isDragOver && (
+        <div className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center">
+          <div
+            className="absolute inset-3 rounded-2xl border-2 border-dashed"
+            style={{ borderColor: "var(--color-accent-2)" }}
+          />
+          <div
+            className="rounded-full border px-4 py-1.5 text-xs font-semibold uppercase tracking-widest backdrop-blur"
+            style={{
+              borderColor: "var(--color-accent-2)",
+              background: "rgba(33, 212, 253, 0.08)",
+              color: "var(--color-accent-2)",
+            }}
+          >
+            Drop to add to board
           </div>
         </div>
       )}
@@ -309,5 +383,3 @@ function LayoutBtn({
     </button>
   );
 }
-
-export const CARD_DRAG_MIME = DRAG_MIME;

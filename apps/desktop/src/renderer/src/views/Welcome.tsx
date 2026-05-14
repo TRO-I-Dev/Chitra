@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import type { RecentProject } from "@chitra/core";
+import { LogoLockup } from "../brand/Logo.js";
 
 interface Props {
   onCreate: (name: string) => void;
@@ -26,11 +27,11 @@ export function Welcome({ onCreate, onOpen, onSample }: Props): JSX.Element {
           transition={{ type: "spring", stiffness: 220, damping: 24 }}
           className="col-span-3 rounded-2xl border border-white/5 bg-white/[0.03] p-10 backdrop-blur-md"
         >
-          <div className="mb-1 text-xs uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
-            Chitra Studio
+          <div className="mb-5">
+            <LogoLockup markSize={42} wordSize="lg" tagline="Visual planning studio" glow />
           </div>
           <h1
-            className="text-5xl font-semibold leading-tight tracking-tight"
+            className="text-4xl font-semibold leading-tight tracking-tight text-[var(--color-ink)]"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Turn writing into a beautiful plan.

@@ -1,10 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
 import { useProjectStore } from "../state/projectStore.js";
 import { useTheme } from "../state/theme.js";
 import { useMode, type WorkspaceMode } from "../state/mode.js";
 import { Inbox } from "./Inbox.js";
 import { Composer } from "./Composer.js";
+import { LogoMark, Wordmark } from "../brand/Logo.js";
 import { Templates } from "./Templates.js";
 import { ExportMenu } from "./ExportMenu.js";
 import { Settings } from "./Settings.js";
@@ -35,6 +36,7 @@ export function Workspace(): JSX.Element {
   const [inspectorCardId, setInspectorCardId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const addAtCenterRef = useRef<((cardId: string) => void) | null>(null);
 
   // Global shortcuts: Ctrl+N (new card), Ctrl+S (save), Ctrl+Shift+S (save as),
   // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (undo/redo).
@@ -67,6 +69,12 @@ export function Workspace(): JSX.Element {
       } else if (cmd && k === "y") {
         e.preventDefault();
         redo();
+      } else if (cmd && k === "1") {
+        e.preventDefault();
+        setWorkMode("structure");
+      } else if (cmd && k === "2") {
+        e.preventDefault();
+        setWorkMode("sketch");
       } else if (k === "escape") {
         if (inspectorCardId) setInspectorCardId(null);
       }
@@ -121,6 +129,12 @@ export function Workspace(): JSX.Element {
           try { localStorage.removeItem("chitra.onboarded.v1"); } catch { /* ignore */ }
           window.location.reload();
           break;
+        case "mode-structure":
+          setWorkMode("structure");
+          break;
+        case "mode-sketch":
+          setWorkMode("sketch");
+          break;
       }
     });
     return off;
@@ -165,7 +179,11 @@ export function Workspace(): JSX.Element {
       {/* Title bar */}
       <header className="titlebar relative flex h-10 shrink-0 items-center justify-between border-b border-white/5 bg-[#0a0a10] px-4 text-xs text-[var(--color-ink-dim)]">
         <div className="flex items-center gap-3">
-          <span className="inline-block h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-2)]" />
+          <div className="flex items-center gap-1.5">
+            <LogoMark size={18} />
+            <Wordmark size="sm" className="text-[var(--color-ink)]" />
+          </div>
+          <span className="opacity-30">·</span>
           <span className="font-semibold text-[var(--color-ink)]">{project.name}</span>
           <span className="opacity-60">— {fileLabel}</span>
           {dirty && (
@@ -217,13 +235,19 @@ export function Workspace(): JSX.Element {
           onAddClick={() => setComposerOpen(true)}
           onDelete={(id) => removeCard(id)}
           onOpen={(id) => setInspectorCardId(id)}
+          onAddToCanvas={(id) => addAtCenterRef.current?.(id)}
         />
 
         {/* Studio canvas */}
         <main className="relative flex flex-1 flex-col overflow-hidden">
           <BoardTabs />
           <div className="relative flex-1 overflow-hidden">
-            <Canvas onOpenCard={(id) => setInspectorCardId(id)} />
+            <Canvas
+              onOpenCard={(id) => setInspectorCardId(id)}
+              registerAddAtCenter={(fn) => {
+                addAtCenterRef.current = fn;
+              }}
+            />
           </div>
         </main>
       </div>
@@ -367,9 +391,9 @@ function ModeStrip({
   mode: WorkspaceMode;
   onChange: (m: WorkspaceMode) => void;
 }): JSX.Element {
-  const items: Array<{ value: WorkspaceMode; label: string; icon: string }> = [
-    { value: "structure", label: "Structure", icon: "▣" },
-    { value: "sketch", label: "Sketch", icon: "✎" },
+  const items: Array<{ value: WorkspaceMode; label: string; icon: string; hint: string }> = [
+    { value: "structure", label: "Structure", icon: "▣", hint: "⌃1" },
+    { value: "sketch", label: "Sketch", icon: "✎", hint: "⌃2" },
   ];
   return (
     <div className="relative flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 p-0.5 text-[11px] backdrop-blur-md">
@@ -380,6 +404,7 @@ function ModeStrip({
             key={it.value}
             type="button"
             onClick={() => onChange(it.value)}
+            title={`${it.label} (${it.hint.replace("⌃", "Ctrl+")})`}
             className="relative z-10 px-3 py-1 transition"
             style={{ color: active ? "#0b0b10" : "rgba(231,231,238,0.7)" }}
           >
@@ -392,6 +417,15 @@ function ModeStrip({
             )}
             <span className="mr-1">{it.icon}</span>
             {it.label}
+            <span
+              className="ml-1.5 rounded px-1 py-px text-[9px] font-semibold tracking-wider"
+              style={{
+                background: active ? "rgba(11,11,16,0.18)" : "rgba(255,255,255,0.06)",
+                color: active ? "rgba(11,11,16,0.7)" : "rgba(231,231,238,0.5)",
+              }}
+            >
+              {it.hint}
+            </span>
           </button>
         );
       })}

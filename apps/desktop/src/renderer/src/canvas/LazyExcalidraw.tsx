@@ -1,6 +1,15 @@
 import { lazy, Suspense } from "react";
 import type { ComponentProps, ComponentType } from "react";
 
+// Excalidraw resolves its asset bundle (icons, fonts, lang JSON) relative to
+// `window.EXCALIDRAW_ASSET_PATH`. Default is `https://unpkg.com/...`, which
+// our strict CSP blocks. We ship the assets in the renderer's public/ folder
+// so they're served from the same origin.
+if (typeof window !== "undefined") {
+  // Cast: this property is not in the lib typings.
+  (window as unknown as { EXCALIDRAW_ASSET_PATH: string }).EXCALIDRAW_ASSET_PATH = "/";
+}
+
 // Dynamic import → put Excalidraw in its own chunk so initial load stays fast.
 // We re-export `default` so React.lazy can consume it.
 const Excalidraw = lazy(async () => {

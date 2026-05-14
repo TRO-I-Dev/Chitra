@@ -1,7 +1,14 @@
 import { useMemo, useState } from "react";
 import type { Card } from "@chitra/core";
 import { AnimatePresence, motion } from "framer-motion";
-import { CARD_TYPE_STYLES } from "../cardStyles.js";
+import {
+  CARD_TYPE_STYLES,
+  STATUS_OPTIONS,
+  PRIORITY_OPTIONS,
+  getCardStatus,
+  getCardPriority,
+  resolveCardStyle,
+} from "../cardStyles.js";
 import { CARD_DRAG_MIME } from "../canvas/Canvas.js";
 
 interface Props {
@@ -9,9 +16,10 @@ interface Props {
   onAddClick: () => void;
   onDelete: (id: string) => void;
   onOpen: (id: string) => void;
+  onAddToCanvas?: (id: string) => void;
 }
 
-export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Element {
+export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Props): JSX.Element {
   const [query, setQuery] = useState("");
 
   const filtered = useMemo(() => {
@@ -74,7 +82,12 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Eleme
         <ul className="flex-1 space-y-2 overflow-auto p-3">
           <AnimatePresence initial={false}>
           {filtered.map((card) => {
-            const style = CARD_TYPE_STYLES[card.type];
+            const tone = CARD_TYPE_STYLES[card.type].tone;
+            const resolved = resolveCardStyle(card);
+            const status = getCardStatus(card);
+            const priority = getCardPriority(card);
+            const statusDef = status ? STATUS_OPTIONS.find((s) => s.value === status) : null;
+            const priorityDef = priority ? PRIORITY_OPTIONS.find((p) => p.value === priority) : null;
             return (
               <motion.li
                 key={card.id}
@@ -83,24 +96,42 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Eleme
                 animate={{ opacity: 1, y: 0, scale: 1 }}
                 exit={{ opacity: 0, x: -16, scale: 0.96 }}
                 transition={{ type: "spring", stiffness: 360, damping: 26 }}
-                draggable
-                onDragStart={(e) => {
-                  // framer-motion's MotionEvent doesn't expose dataTransfer typings; cast.
-                  const native = e as unknown as React.DragEvent;
-                  native.dataTransfer.setData(CARD_DRAG_MIME, card.id);
-                  native.dataTransfer.effectAllowed = "move";
-                }}
+                /* framer-motion intercepts onDragStart for its own drag gestures.
+                   Disable that and use the real HTML5 drag system instead. */
+                drag={false}
                 onClick={() => onOpen(card.id)}
                 className={[
-                  "group cursor-grab rounded-xl border bg-gradient-to-br p-3 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing",
-                  style.tone,
+                  "group relative cursor-grab overflow-hidden rounded-xl border bg-gradient-to-br p-3 pl-4 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing",
+                  tone,
                 ].join(" ")}
+                draggable
+                onDragStart={(e) => {
+                  const dt = (e as unknown as React.DragEvent<HTMLLIElement>).dataTransfer;
+                  if (!dt) return;
+                  dt.setData(CARD_DRAG_MIME, card.id);
+                  dt.setData("text/plain", card.title);
+                  dt.effectAllowed = "copyMove";
+                }}
               >
+                {/* Accent left bar */}
+                <span
+                  aria-hidden
+                  className="pointer-events-none absolute left-0 top-0 h-full w-1"
+                  style={{ background: resolved.accent }}
+                />
+
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     <div className="mb-1 flex items-center gap-1.5 text-[10px] uppercase tracking-widest opacity-80">
-                      <span>{style.emoji}</span>
-                      <span>{style.label}</span>
+                      <span>{resolved.emoji}</span>
+                      <span>{resolved.label}</span>
+                      {statusDef && (
+                        <span
+                          className="ml-1 inline-block h-1.5 w-1.5 rounded-full"
+                          style={{ background: statusDef.color }}
+                          title={`Status: ${statusDef.label}`}
+                        />
+                      )}
                       {card.tags.length > 0 && (
                         <span className="ml-1 truncate opacity-70">· {card.tags.join(", ")}</span>
                       )}
@@ -110,17 +141,52 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Eleme
                       {flattenBody(card)}
                     </div>
                   </div>
-                  <button
-                    type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onDelete(card.id);
-                    }}
-                    className="opacity-0 transition group-hover:opacity-60 hover:opacity-100"
-                    title="Delete card"
-                  >
-                    ✕
-                  </button>
+                  <div className="flex flex-col items-end gap-1">
+                    <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
+                      {onAddToCanvas && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onAddToCanvas(card.id);
+                          }}
+                          className="rounded-md border border-white/10 bg-black/40 px-1.5 py-0.5 text-[10px] hover:bg-white/10"
+                          title="Add to canvas"
+                        >
+                          + Canvas
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDelete(card.id);
+                        }}
+                        className="rounded-md px-1 py-0.5 text-xs hover:bg-rose-500/10 hover:text-rose-300"
+                        title="Delete card"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                    {priorityDef && (
+                      <div
+                        className="flex items-end gap-[2px]"
+                        title={`Priority: ${priorityDef.label}`}
+                      >
+                        {[1, 2, 3].map((i) => (
+                          <span
+                            key={i}
+                            className="block w-[2px] rounded-sm"
+                            style={{
+                              height: 4 + i * 2,
+                              background:
+                                i <= priorityDef.bars ? priorityDef.color : "rgba(255,255,255,0.18)",
+                            }}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.li>
             );

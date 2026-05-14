@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { LogoMark } from "../brand/Logo.js";
 
 const KEY = "chitra.onboarded.v1";
 
@@ -71,6 +72,7 @@ export function Onboarding(): JSX.Element | null {
           className="pointer-events-auto w-[360px] rounded-2xl border border-white/10 bg-[#0d0d14]/95 p-5 shadow-2xl shadow-black/60 backdrop-blur"
         >
           <div className="mb-1 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-widest text-[var(--color-accent-2)]">
+            <LogoMark size={14} />
             <span>Tour</span>
             <span className="text-[var(--color-ink-dim)]">
               {step + 1} / {STEPS.length}

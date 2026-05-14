@@ -1,7 +1,18 @@
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import type { Card, CardType, RichDoc } from "@chitra/core";
-import { CARD_TYPES, CARD_TYPE_STYLES } from "../cardStyles.js";
+import {
+  CARD_TYPES,
+  CARD_TYPE_STYLES,
+  ACCENT_PALETTE,
+  ICON_CHOICES,
+  STATUS_OPTIONS,
+  PRIORITY_OPTIONS,
+  getCardStatus,
+  getCardPriority,
+  type CardStatus,
+  type CardPriority,
+} from "../cardStyles.js";
 import { useProjectStore } from "../state/projectStore.js";
 
 function bodyToText(body: RichDoc): string {
@@ -39,6 +50,10 @@ export function CardInspector({
   const [bodyText, setBody] = useState("");
   const [type, setType] = useState<CardType>("note");
   const [tags, setTags] = useState("");
+  const [accent, setAccent] = useState<string | null>(null);
+  const [icon, setIcon] = useState<string | null>(null);
+  const [status, setStatus] = useState<CardStatus | null>(null);
+  const [priority, setPriority] = useState<CardPriority | null>(null);
 
   useEffect(() => {
     if (!card) return;
@@ -46,6 +61,10 @@ export function CardInspector({
     setBody(bodyToText(card.body));
     setType(card.type);
     setTags(card.tags.join(", "));
+    setAccent(card.color ?? null);
+    setIcon(card.icon ?? null);
+    setStatus(getCardStatus(card));
+    setPriority(getCardPriority(card));
   }, [card]);
 
   if (!card) {
@@ -55,11 +74,19 @@ export function CardInspector({
   }
 
   const save = (): void => {
+    const meta: Record<string, unknown> = {
+      ...((card.metadata as Record<string, unknown>) ?? {}),
+    };
+    if (status) meta["status"] = status; else delete meta["status"];
+    if (priority) meta["priority"] = priority; else delete meta["priority"];
     updateCard(card.id, {
       title: title.trim() || "Untitled",
       type,
       body: textToBody(bodyText),
       tags: tags.split(",").map((t) => t.trim()).filter(Boolean),
+      metadata: meta,
+      color: accent ?? null,
+      icon: icon ?? null,
     });
     onClose();
   };
@@ -68,7 +95,11 @@ export function CardInspector({
     title !== card.title ||
     type !== card.type ||
     bodyText !== bodyToText(card.body) ||
-    tags !== card.tags.join(", ");
+    tags !== card.tags.join(", ") ||
+    accent !== (card.color ?? null) ||
+    icon !== (card.icon ?? null) ||
+    status !== getCardStatus(card) ||
+    priority !== getCardPriority(card);
 
   return (
     <AnimatePresence>
@@ -144,6 +175,168 @@ export function CardInspector({
                   </button>
                 );
               })}
+            </div>
+          </div>
+
+          {/* Accent override */}
+          <div className="border-t border-white/5 px-5 py-3">
+            <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
+              <span>Accent colour</span>
+              {accent && (
+                <button
+                  type="button"
+                  onClick={() => setAccent(null)}
+                  className="rounded px-2 py-0.5 text-[10px] hover:bg-white/5"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {ACCENT_PALETTE.map((sw) => {
+                const active = accent === sw.color;
+                return (
+                  <button
+                    type="button"
+                    key={sw.id}
+                    onClick={() => setAccent(sw.color)}
+                    title={sw.label}
+                    className={[
+                      "h-7 w-7 rounded-full border transition",
+                      active
+                        ? "scale-110 border-white/50 ring-2 ring-white/30"
+                        : "border-white/10 hover:border-white/30",
+                    ].join(" ")}
+                    style={{ background: sw.color }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Icon override */}
+          <div className="border-t border-white/5 px-5 py-3">
+            <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
+              <span>Icon</span>
+              {icon && (
+                <button
+                  type="button"
+                  onClick={() => setIcon(null)}
+                  className="rounded px-2 py-0.5 text-[10px] hover:bg-white/5"
+                >
+                  Reset
+                </button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {ICON_CHOICES.map((g) => {
+                const active = icon === g;
+                return (
+                  <button
+                    type="button"
+                    key={g}
+                    onClick={() => setIcon(g)}
+                    className={[
+                      "h-8 w-8 rounded-lg border text-base transition",
+                      active
+                        ? "border-[var(--color-accent-2)]/60 bg-white/10"
+                        : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]",
+                    ].join(" ")}
+                  >
+                    {g}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Status & priority */}
+          <div className="grid grid-cols-2 gap-x-4 border-t border-white/5 px-5 py-3">
+            <div>
+              <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
+                <span>Status</span>
+                {status && (
+                  <button
+                    type="button"
+                    onClick={() => setStatus(null)}
+                    className="rounded px-2 py-0.5 text-[10px] hover:bg-white/5"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {STATUS_OPTIONS.map((opt) => {
+                  const active = status === opt.value;
+                  return (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      onClick={() => setStatus(opt.value)}
+                      className={[
+                        "flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition",
+                        active
+                          ? "border-white/30 bg-white/10"
+                          : "border-white/5 bg-white/[0.02] text-[var(--color-ink-dim)] hover:bg-white/[0.05]",
+                      ].join(" ")}
+                    >
+                      <span
+                        className="inline-block h-2 w-2 rounded-full"
+                        style={{ background: opt.color }}
+                      />
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
+                <span>Priority</span>
+                {priority && (
+                  <button
+                    type="button"
+                    onClick={() => setPriority(null)}
+                    className="rounded px-2 py-0.5 text-[10px] hover:bg-white/5"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {PRIORITY_OPTIONS.map((opt) => {
+                  const active = priority === opt.value;
+                  return (
+                    <button
+                      type="button"
+                      key={opt.value}
+                      onClick={() => setPriority(opt.value)}
+                      className={[
+                        "flex items-center gap-1 rounded-full border px-2 py-1 text-[11px] transition",
+                        active
+                          ? "border-white/30 bg-white/10"
+                          : "border-white/5 bg-white/[0.02] text-[var(--color-ink-dim)] hover:bg-white/[0.05]",
+                      ].join(" ")}
+                    >
+                      <span className="flex items-end gap-[2px]">
+                        {[1, 2, 3].map((i) => (
+                          <span
+                            key={i}
+                            className="block w-[2px] rounded-sm"
+                            style={{
+                              height: 4 + i * 2,
+                              background:
+                                i <= opt.bars ? opt.color : "rgba(255,255,255,0.18)",
+                            }}
+                          />
+                        ))}
+                      </span>
+                      {opt.label}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
 

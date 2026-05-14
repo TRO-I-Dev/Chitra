@@ -17,7 +17,9 @@ export type MenuAction =
   | "open-templates"
   | "open-settings"
   | "toggle-theme"
-  | "show-onboarding";
+  | "show-onboarding"
+  | "mode-structure"
+  | "mode-sketch";
 
 export function buildAppMenu(getWindow: () => BrowserWindow | null): Menu {
   const isMac = process.platform === "darwin";
@@ -59,6 +61,9 @@ export function buildAppMenu(getWindow: () => BrowserWindow | null): Menu {
   const viewMenu: MenuItemConstructorOptions = {
     label: "&View",
     submenu: [
+      { label: "Structure mode", accelerator: "CmdOrCtrl+1", click: () => send("mode-structure") },
+      { label: "Sketch mode",    accelerator: "CmdOrCtrl+2", click: () => send("mode-sketch") },
+      { type: "separator" },
       { label: "Templates\u2026", accelerator: "CmdOrCtrl+T", click: () => send("open-templates") },
       { label: "Settings\u2026", accelerator: "CmdOrCtrl+,",  click: () => send("open-settings") },
       { label: "Toggle theme",   accelerator: "CmdOrCtrl+J",  click: () => send("toggle-theme") },
