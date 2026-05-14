@@ -7,9 +7,10 @@ interface Props {
   cards: Card[];
   onAddClick: () => void;
   onDelete: (id: string) => void;
+  onOpen: (id: string) => void;
 }
 
-export function Inbox({ cards, onAddClick, onDelete }: Props): JSX.Element {
+export function Inbox({ cards, onAddClick, onDelete, onOpen }: Props): JSX.Element {
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-white/5 bg-[#0d0d14]">
       <div className="flex items-center justify-between border-b border-white/5 px-4 py-3">
@@ -54,6 +55,7 @@ export function Inbox({ cards, onAddClick, onDelete }: Props): JSX.Element {
                   native.dataTransfer.setData(CARD_DRAG_MIME, card.id);
                   native.dataTransfer.effectAllowed = "move";
                 }}
+                onClick={() => onOpen(card.id)}
                 className={[
                   "group cursor-grab rounded-xl border bg-gradient-to-br p-3 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing",
                   style.tone,
@@ -72,7 +74,10 @@ export function Inbox({ cards, onAddClick, onDelete }: Props): JSX.Element {
                   </div>
                   <button
                     type="button"
-                    onClick={() => onDelete(card.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDelete(card.id);
+                    }}
                     className="opacity-0 transition group-hover:opacity-60 hover:opacity-100"
                     title="Delete card"
                   >

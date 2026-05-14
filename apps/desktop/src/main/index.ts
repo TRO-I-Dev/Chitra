@@ -1,4 +1,4 @@
-import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, Menu, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
 import { writeFile } from "node:fs/promises";
@@ -20,6 +20,7 @@ import { deleteSecret, getSecret, setSecret } from "./secrets.js";
 import { publishToNotion } from "./publishers/notion.js";
 import { publishToConfluence } from "./publishers/confluence.js";
 import { setupAutoUpdater } from "./updater.js";
+import { buildAppMenu } from "./appMenu.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -265,6 +266,7 @@ function registerAllHandlers(): void {
 
 void app.whenReady().then(() => {
   registerAllHandlers();
+  Menu.setApplicationMenu(buildAppMenu(() => mainWindow));
   createMainWindow();
   setupAutoUpdater();
 

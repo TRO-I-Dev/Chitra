@@ -8,6 +8,7 @@ import { Composer } from "./Composer.js";
 import { Templates } from "./Templates.js";
 import { ExportMenu } from "./ExportMenu.js";
 import { Settings } from "./Settings.js";
+import { CardInspector } from "./CardInspector.js";
 import { Canvas } from "../canvas/Canvas.js";
 import type { CardType } from "@chitra/core";
 
@@ -20,6 +21,8 @@ export function Workspace(): JSX.Element {
   const removeCard = useProjectStore((s) => s.removeCard);
   const markSaved = useProjectStore((s) => s.markSaved);
   const closeProject = useProjectStore((s) => s.closeProject);
+  const undo = useProjectStore((s) => s.undo);
+  const redo = useProjectStore((s) => s.redo);
   const themeMode = useTheme((s) => s.mode);
   const toggleTheme = useTheme((s) => s.toggle);
   const workMode = useMode((s) => s.mode);
@@ -28,25 +31,98 @@ export function Workspace(): JSX.Element {
   const [composerOpen, setComposerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inspectorCardId, setInspectorCardId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Global shortcuts: Ctrl+N (new card), Ctrl+S (save), Ctrl+Shift+S (save as)
+  // Global shortcuts: Ctrl+N (new card), Ctrl+S (save), Ctrl+Shift+S (save as),
+  // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y (undo/redo).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "n") {
+      // Skip when an input/textarea/contenteditable owns focus.
+      const t = e.target as HTMLElement | null;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) {
+        const k = e.key.toLowerCase();
+        // Still allow save in inputs.
+        if (!((e.ctrlKey || e.metaKey) && (k === "s" || k === "z" || k === "y"))) return;
+      }
+      const cmd = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      if (cmd && k === "n") {
         e.preventDefault();
         setComposerOpen(true);
-      } else if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === "s") {
+      } else if (cmd && e.shiftKey && k === "s") {
         e.preventDefault();
         void saveAs();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+      } else if (cmd && k === "s") {
         e.preventDefault();
         void save();
+      } else if (cmd && e.shiftKey && k === "z") {
+        e.preventDefault();
+        redo();
+      } else if (cmd && k === "z") {
+        e.preventDefault();
+        undo();
+      } else if (cmd && k === "y") {
+        e.preventDefault();
+        redo();
+      } else if (k === "escape") {
+        if (inspectorCardId) setInspectorCardId(null);
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, path, inspectorCardId]);
+
+  // Auto-save every 60s when the project has a path on disk and is dirty.
+  useEffect(() => {
+    if (!path) return;
+    const id = window.setInterval(() => {
+      if (useProjectStore.getState().dirty) void save();
+    }, 60_000);
+    return () => window.clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [path]);
+
+  // Native menu → renderer actions.
+  useEffect(() => {
+    const off = window.chitra.onMenu((action) => {
+      switch (action) {
+        case "new-card":
+          setComposerOpen(true);
+          break;
+        case "save":
+          void save();
+          break;
+        case "save-as":
+          void saveAs();
+          break;
+        case "close-project":
+          closeProject();
+          break;
+        case "undo":
+          undo();
+          break;
+        case "redo":
+          redo();
+          break;
+        case "open-templates":
+          setTemplatesOpen(true);
+          break;
+        case "open-settings":
+          setSettingsOpen(true);
+          break;
+        case "toggle-theme":
+          toggleTheme();
+          break;
+        case "show-onboarding":
+          try { localStorage.removeItem("chitra.onboarded.v1"); } catch { /* ignore */ }
+          window.location.reload();
+          break;
+      }
+    });
+    return off;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [project, path]);
 
@@ -138,13 +214,14 @@ export function Workspace(): JSX.Element {
           cards={project.cards}
           onAddClick={() => setComposerOpen(true)}
           onDelete={(id) => removeCard(id)}
+          onOpen={(id) => setInspectorCardId(id)}
         />
 
         {/* Studio canvas */}
         <main className="relative flex flex-1 flex-col overflow-hidden">
           <BoardTabs />
           <div className="relative flex-1 overflow-hidden">
-            <Canvas />
+            <Canvas onOpenCard={(id) => setInspectorCardId(id)} />
           </div>
         </main>
       </div>
@@ -157,6 +234,10 @@ export function Workspace(): JSX.Element {
 
       <Templates open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
       <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <CardInspector
+        card={inspectorCardId ? project.cards.find((c) => c.id === inspectorCardId) ?? null : null}
+        onClose={() => setInspectorCardId(null)}
+      />
     </div>
   );
 }

@@ -63,21 +63,23 @@ export function Welcome({ onCreate, onOpen, onSample }: Props): JSX.Element {
             </button>
           </form>
 
-          <button
-            type="button"
-            onClick={() => onOpen()}
-            className="mt-3 text-sm text-[var(--color-ink-dim)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
-          >
-            …or open an existing .chitra file
-          </button>
-
-          <button
-            type="button"
-            onClick={onSample}
-            className="mt-3 ml-4 text-sm text-[var(--color-ink-dim)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
-          >
-            …or try a sample project
-          </button>
+          <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1">
+            <button
+              type="button"
+              onClick={() => onOpen()}
+              className="text-sm text-[var(--color-ink-dim)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
+            >
+              …or open an existing .chitra file
+            </button>
+            <span className="text-[var(--color-ink-dim)]/40">·</span>
+            <button
+              type="button"
+              onClick={onSample}
+              className="text-sm text-[var(--color-ink-dim)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
+            >
+              …or try a sample project
+            </button>
+          </div>
         </motion.section>
 
         {/* Recents */}

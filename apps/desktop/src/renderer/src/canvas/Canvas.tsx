@@ -32,15 +32,15 @@ const nodeTypes: NodeTypes = { card: CardNode };
 
 const DRAG_MIME = "application/x-chitra-card";
 
-export function Canvas(): JSX.Element {
+export function Canvas({ onOpenCard }: { onOpenCard?: (cardId: string) => void } = {}): JSX.Element {
   return (
     <ReactFlowProvider>
-      <CanvasInner />
+      <CanvasInner onOpenCard={onOpenCard} />
     </ReactFlowProvider>
   );
 }
 
-function CanvasInner(): JSX.Element {
+function CanvasInner({ onOpenCard }: { onOpenCard?: (cardId: string) => void }): JSX.Element {
   const board = useCurrentBoard();
   const cardMap = useCardMap();
   const themeMode = useTheme((s) => s.mode);
@@ -51,6 +51,7 @@ function CanvasInner(): JSX.Element {
   const addNodeFromCard = useProjectStore((s) => s.addNodeFromCard);
   const removeNode = useProjectStore((s) => s.removeNode);
   const removeEdge = useProjectStore((s) => s.removeEdge);
+  const pushHistory = useProjectStore((s) => s.pushHistory);
 
   const wrapperRef = useRef<HTMLDivElement | null>(null);
   const [rfInstance, setRfInstance] = useState<ReactFlowInstance | null>(null);
@@ -186,6 +187,11 @@ function CanvasInner(): JSX.Element {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         onInit={setRfInstance}
+        onNodeDragStart={() => pushHistory()}
+        onNodeDoubleClick={(_e, node) => {
+          const cardId = (node.data as CardNodeData | undefined)?.card.id;
+          if (cardId && onOpenCard) onOpenCard(cardId);
+        }}
         proOptions={{ hideAttribution: true }}
         snapToGrid
         snapGrid={[16, 16]}

@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import type {
   Board,
@@ -48,7 +49,22 @@ export interface ProjectState {
 
   // Templates
   applyTemplate: (template: Template) => string | null;
+
+  // History
+  /** @internal */
+  _past: Project[];
+  /** @internal */
+  _future: Project[];
+  /** Components owning continuous interactions (drags) call this once on
+      interaction start so undo rolls the whole interaction back. */
+  pushHistory: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+  undo: () => void;
+  redo: () => void;
 }
+
+const HISTORY_LIMIT = 80;
 
 function nowIso(): string {
   return new Date().toISOString();
@@ -59,12 +75,24 @@ function patchBoard(project: Project, boardId: string, patch: (b: Board) => Boar
   return { ...project, boards, updatedAt: nowIso() };
 }
 
-export const useProjectStore = create<ProjectState>((set, get) => ({
+export const useProjectStore = create<ProjectState>((set, get) => {
+  function snapshot(): void {
+    const cur = get().project;
+    if (!cur) return;
+    const past = get()._past;
+    const next = [...past, cur];
+    if (next.length > HISTORY_LIMIT) next.shift();
+    set({ _past: next, _future: [] });
+  }
+
+  return {
   project: null,
   path: null,
   dirty: false,
   lastSavedAt: null,
   currentBoardId: null,
+  _past: [],
+  _future: [],
 
   setProject: (project, path) =>
     set({
@@ -73,6 +101,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: false,
       lastSavedAt: path ? project.updatedAt : null,
       currentBoardId: project.boards[0]?.id ?? null,
+      _past: [],
+      _future: [],
     }),
 
   closeProject: () =>
@@ -82,6 +112,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       dirty: false,
       lastSavedAt: null,
       currentBoardId: null,
+      _past: [],
+      _future: [],
     }),
 
   markSaved: (path, savedAt) => set({ path, dirty: false, lastSavedAt: savedAt }),
@@ -89,6 +121,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
   setCurrentBoard: (id) => set({ currentBoardId: id }),
 
   addCard: ({ title, body, type }) => {
+    snapshot();
     const card: Card = {
       id: nanoid(),
       type,
@@ -110,16 +143,19 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return card;
   },
 
-  updateCard: (id, patch) =>
+  updateCard: (id, patch) => {
+    snapshot();
     set((s) => {
       if (!s.project) return s;
       const cards = s.project.cards.map((c) =>
         c.id === id ? { ...c, ...patch, updatedAt: nowIso() } : c,
       );
       return { project: { ...s.project, cards, updatedAt: nowIso() }, dirty: true };
-    }),
+    });
+  },
 
-  removeCard: (id) =>
+  removeCard: (id) => {
+    snapshot();
     set((s) => {
       if (!s.project) return s;
       // Remove the card AND any nodes/edges referencing it on every board.
@@ -131,11 +167,13 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       });
       const cards = s.project.cards.filter((c) => c.id !== id);
       return { project: { ...s.project, cards, boards, updatedAt: nowIso() }, dirty: true };
-    }),
+    });
+  },
 
   addNodeFromCard: (cardId, position) => {
     const { project, currentBoardId } = get();
     if (!project || !currentBoardId) return null;
+    snapshot();
     const node: BoardNode = {
       id: nanoid(),
       cardId,
@@ -149,6 +187,9 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     return node;
   },
 
+  // Note: updateNodes / updateEdges fire on EVERY drag tick — we don't
+  // snapshot here. Components should call `pushHistory()` on dragStop /
+  // before discrete mutations they own.
   updateNodes: (updater) =>
     set((s) => {
       if (!s.project || !s.currentBoardId) return s;
@@ -158,7 +199,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       };
     }),
 
-  removeNode: (nodeId) =>
+  removeNode: (nodeId) => {
+    snapshot();
     set((s) => {
       if (!s.project || !s.currentBoardId) return s;
       return {
@@ -169,7 +211,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })),
         dirty: true,
       };
-    }),
+    });
+  },
 
   addEdge: ({ source, target, kind = "flows-to" }) => {
     const { project, currentBoardId } = get();
@@ -179,6 +222,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     if (board?.edges.some((e) => e.source === source && e.target === target && e.kind === kind)) {
       return null;
     }
+    snapshot();
     const edge: BoardEdge = { id: nanoid(), source, target, kind };
     set({
       project: patchBoard(project, currentBoardId, (b) => ({ ...b, edges: [...b.edges, edge] })),
@@ -196,7 +240,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
       };
     }),
 
-  removeEdge: (edgeId) =>
+  removeEdge: (edgeId) => {
+    snapshot();
     set((s) => {
       if (!s.project || !s.currentBoardId) return s;
       return {
@@ -206,7 +251,8 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         })),
         dirty: true,
       };
-    }),
+    });
+  },
 
   setBoardSketch: (sketch) =>
     set((s) => {
@@ -218,6 +264,7 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     }),
 
   applyTemplate: (template) => {
+    snapshot();
     const scene = template.build();
     const ts = nowIso();
 
@@ -291,7 +338,44 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
     });
     return createdBoardId;
   },
-}));
+
+  /* -------- History -------- */
+  pushHistory: snapshot,
+  canUndo: () => get()._past.length > 0,
+  canRedo: () => get()._future.length > 0,
+  undo: () => {
+    const { _past, _future, project } = get();
+    if (_past.length === 0 || !project) return;
+    const prev = _past[_past.length - 1];
+    if (!prev) return;
+    set({
+      project: prev,
+      _past: _past.slice(0, -1),
+      _future: [..._future, project],
+      dirty: true,
+      // Keep currentBoardId valid.
+      currentBoardId: prev.boards.some((b) => b.id === get().currentBoardId)
+        ? get().currentBoardId
+        : prev.boards[0]?.id ?? null,
+    });
+  },
+  redo: () => {
+    const { _past, _future, project } = get();
+    if (_future.length === 0 || !project) return;
+    const next = _future[_future.length - 1];
+    if (!next) return;
+    set({
+      project: next,
+      _past: [..._past, project],
+      _future: _future.slice(0, -1),
+      dirty: true,
+      currentBoardId: next.boards.some((b) => b.id === get().currentBoardId)
+        ? get().currentBoardId
+        : next.boards[0]?.id ?? null,
+    });
+  },
+  };
+});
 
 /* ------------------------------------------------------------------ *
  *  Selectors                                                          *
@@ -304,6 +388,12 @@ export function useCurrentBoard(): Board | null {
   });
 }
 
+/**
+ * Stable Card lookup map. Returns the same Map reference between renders
+ * unless `project.cards` actually changes — avoiding re-render thrash in
+ * components that subscribe to it (the canvas in particular).
+ */
 export function useCardMap(): Map<string, Card> {
-  return useProjectStore((s) => new Map((s.project?.cards ?? []).map((c) => [c.id, c])));
+  const cards = useProjectStore((s) => s.project?.cards);
+  return useMemo(() => new Map((cards ?? []).map((c) => [c.id, c])), [cards]);
 }

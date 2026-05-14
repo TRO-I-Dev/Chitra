@@ -41,6 +41,14 @@ const api = {
     invoke(IpcChannel.PublishNotion, args),
   publishConfluence: (args: IpcRequest<typeof IpcChannel.PublishConfluence>) =>
     invoke(IpcChannel.PublishConfluence, args),
+  /** Subscribe to native menu events sent from the main process. */
+  onMenu: (handler: (action: string) => void): (() => void) => {
+    const listener = (_e: unknown, action: string): void => handler(action);
+    ipcRenderer.on("menu", listener);
+    return () => {
+      ipcRenderer.removeListener("menu", listener);
+    };
+  },
 } as const;
 
 export type ChitraApi = typeof api;

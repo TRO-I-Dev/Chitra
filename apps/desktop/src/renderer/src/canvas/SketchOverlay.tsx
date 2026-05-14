@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import { Excalidraw } from "@excalidraw/excalidraw";
-// Excalidraw 0.17.x ships its CSS injected via style-loader at runtime, so
-// no explicit CSS import is needed (and none is exported).
+import { LazyExcalidraw } from "./LazyExcalidraw.js";
 import type {
   ExcalidrawImperativeAPI,
   ExcalidrawInitialDataState,
@@ -67,6 +65,10 @@ export function SketchOverlay(): JSX.Element | null {
   }, [board?.id, initial]);
 
   if (!board) return null;
+  // Only mount Excalidraw if the user has entered sketch mode at least once
+  // OR the board already has sketch data — keeps the heavy chunk lazy.
+  const hasSketch = !!board.sketch && Object.keys(board.sketch).length > 0;
+  if (mode !== "sketch" && !hasSketch) return null;
 
   return (
     <div
@@ -80,8 +82,8 @@ export function SketchOverlay(): JSX.Element | null {
         background: "transparent",
       }}
     >
-      <Excalidraw
-        excalidrawAPI={(api) => {
+      <LazyExcalidraw
+        excalidrawAPI={(api: ExcalidrawImperativeAPI) => {
           apiRef.current = api;
         }}
         initialData={initial()}
@@ -100,7 +102,7 @@ export function SketchOverlay(): JSX.Element | null {
             toggleTheme: false,
           },
         }}
-        onChange={(elements, appState, files) => {
+        onChange={(elements: readonly unknown[], appState: unknown, files: unknown) => {
           // Cheap dedupe — Excalidraw emits onChange even on hover.
           const next = JSON.stringify({ elements, files });
           if (next === lastSerialized.current) return;

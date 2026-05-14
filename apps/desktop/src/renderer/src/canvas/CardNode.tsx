@@ -33,11 +33,16 @@ export function CardNode({ data, selected }: NodeProps): JSX.Element {
         {flattenBody(card)}
       </div>
 
-      {/* Four directional handles — each acts as both source and target. */}
-      <Handle id="t" type="target" position={Position.Top} className="!h-2 !w-2 !border-0 !bg-white/40" />
-      <Handle id="r" type="source" position={Position.Right} className="!h-2 !w-2 !border-0 !bg-white/40" />
-      <Handle id="b" type="source" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-white/40" />
-      <Handle id="l" type="target" position={Position.Left} className="!h-2 !w-2 !border-0 !bg-white/40" />
+      {/* Four directional handles, each acting as both source AND target so
+          edges can be drawn in any direction. */}
+      <Handle id="t-src" type="source" position={Position.Top}    className="!h-2 !w-2 !border-0 !bg-white/40" />
+      <Handle id="t-tgt" type="target" position={Position.Top}    className="!h-2 !w-2 !border-0 !bg-transparent" />
+      <Handle id="r-src" type="source" position={Position.Right}  className="!h-2 !w-2 !border-0 !bg-white/40" />
+      <Handle id="r-tgt" type="target" position={Position.Right}  className="!h-2 !w-2 !border-0 !bg-transparent" />
+      <Handle id="b-src" type="source" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-white/40" />
+      <Handle id="b-tgt" type="target" position={Position.Bottom} className="!h-2 !w-2 !border-0 !bg-transparent" />
+      <Handle id="l-src" type="source" position={Position.Left}   className="!h-2 !w-2 !border-0 !bg-white/40" />
+      <Handle id="l-tgt" type="target" position={Position.Left}   className="!h-2 !w-2 !border-0 !bg-transparent" />
     </div>
   );
 }
