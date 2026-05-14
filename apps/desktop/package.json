@@ -16,6 +16,7 @@
   "dependencies": {
     "@chitra/core": "workspace:*",
     "@chitra/composer": "workspace:*",
+    "@chitra/templates": "workspace:*",
     "@dagrejs/dagre": "1.1.4",
     "@excalidraw/excalidraw": "0.17.6",
     "@xyflow/react": "12.3.2",

@@ -5,6 +5,7 @@ import { useTheme } from "../state/theme.js";
 import { useMode, type WorkspaceMode } from "../state/mode.js";
 import { Inbox } from "./Inbox.js";
 import { Composer } from "./Composer.js";
+import { Templates } from "./Templates.js";
 import { Canvas } from "../canvas/Canvas.js";
 import type { CardType } from "@chitra/core";
 
@@ -23,6 +24,7 @@ export function Workspace(): JSX.Element {
   const setWorkMode = useMode((s) => s.setMode);
 
   const [composerOpen, setComposerOpen] = useState(false);
+  const [templatesOpen, setTemplatesOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -105,6 +107,7 @@ export function Workspace(): JSX.Element {
           <ModeStrip mode={workMode} onChange={setWorkMode} />
         </div>
         <div className="flex items-center gap-1.5">
+          <BarBtn onClick={() => setTemplatesOpen(true)}>Templates</BarBtn>
           <BarBtn onClick={toggleTheme}>
             {themeMode === "studio" ? "◐ Calm" : "◑ Studio"}
           </BarBtn>
@@ -133,8 +136,11 @@ export function Workspace(): JSX.Element {
         />
 
         {/* Studio canvas */}
-        <main className="relative flex-1 overflow-hidden">
-          <Canvas />
+        <main className="relative flex flex-1 flex-col overflow-hidden">
+          <BoardTabs />
+          <div className="relative flex-1 overflow-hidden">
+            <Canvas />
+          </div>
         </main>
       </div>
 
@@ -143,6 +149,8 @@ export function Workspace(): JSX.Element {
         onClose={() => setComposerOpen(false)}
         onCreate={({ title, type, bodyText }) => addCardWithBody(addCard, { title, type, bodyText })}
       />
+
+      <Templates open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
     </div>
   );
 }
@@ -192,6 +200,42 @@ function timeAgo(iso: string): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h} h ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+function BoardTabs(): JSX.Element | null {
+  const boards = useProjectStore((s) => s.project?.boards ?? []);
+  const currentId = useProjectStore((s) => s.currentBoardId);
+  const setCurrent = useProjectStore((s) => s.setCurrentBoard);
+  if (boards.length === 0) return null;
+  return (
+    <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-white/5 bg-[#0a0a10]/80 px-3 backdrop-blur">
+      {boards.map((b) => {
+        const active = b.id === currentId;
+        return (
+          <button
+            key={b.id}
+            type="button"
+            onClick={() => setCurrent(b.id)}
+            className={[
+              "relative rounded-md px-3 py-1 text-xs transition",
+              active
+                ? "bg-white/5 text-[var(--color-ink)]"
+                : "text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]",
+            ].join(" ")}
+          >
+            {active && (
+              <motion.span
+                layoutId="board-tab-underline"
+                className="absolute inset-x-2 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-[var(--color-accent)] to-[var(--color-accent-2)]"
+                transition={{ type: "spring", stiffness: 500, damping: 32 }}
+              />
+            )}
+            {b.name}
+          </button>
+        );
+      })}
+    </div>
+  );
 }
 
 function ModeStrip({

@@ -10,6 +10,7 @@ import type {
   Project,
   RichDoc,
 } from "@chitra/core";
+import { type Template, seedToCard } from "@chitra/templates";
 
 export interface ProjectState {
   /** Loaded project, if any. */
@@ -44,6 +45,9 @@ export interface ProjectState {
 
   // Sketch overlay (per current board)
   setBoardSketch: (sketch: Record<string, unknown>) => void;
+
+  // Templates
+  applyTemplate: (template: Template) => string | null;
 }
 
 function nowIso(): string {
@@ -212,6 +216,81 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
         dirty: true,
       };
     }),
+
+  applyTemplate: (template) => {
+    const scene = template.build();
+    const ts = nowIso();
+
+    // Stamp fresh ids for each seed card and remember the key→id map.
+    const cardIdByKey = new Map<string, string>();
+    const newCards: Card[] = scene.cards.map((seed) => {
+      const id = nanoid();
+      cardIdByKey.set(seed.key, id);
+      return { id, createdAt: ts, updatedAt: ts, ...seedToCard(seed) };
+    });
+
+    // Stamp fresh ids for each seed node and remember key→nodeId so edges
+    // can refer to actual node ids.
+    const nodeIdByKey = new Map<string, string>();
+    const newNodes: BoardNode[] = scene.nodes
+      .map((seed) => {
+        const cardId = cardIdByKey.get(seed.cardKey);
+        if (!cardId) return null;
+        const id = nanoid();
+        nodeIdByKey.set(seed.cardKey, id);
+        const node: BoardNode = {
+          id,
+          cardId,
+          position: seed.position,
+          locked: seed.locked ?? false,
+        };
+        if (seed.width !== undefined) node.width = seed.width;
+        if (seed.height !== undefined) node.height = seed.height;
+        return node;
+      })
+      .filter((n): n is BoardNode => n !== null);
+
+    const newEdges: BoardEdge[] = scene.edges
+      .map((seed) => {
+        const source = nodeIdByKey.get(seed.fromKey);
+        const target = nodeIdByKey.get(seed.toKey);
+        if (!source || !target) return null;
+        const edge: BoardEdge = {
+          id: nanoid(),
+          source,
+          target,
+          kind: seed.kind ?? "flows-to",
+        };
+        if (seed.label !== undefined) edge.label = seed.label;
+        return edge;
+      })
+      .filter((e): e is BoardEdge => e !== null);
+
+    const newBoard: Board = {
+      id: nanoid(),
+      name: scene.boardName,
+      templateId: template.id,
+      nodes: newNodes,
+      edges: newEdges,
+    };
+
+    let createdBoardId: string | null = null;
+    set((s) => {
+      if (!s.project) return s;
+      createdBoardId = newBoard.id;
+      return {
+        project: {
+          ...s.project,
+          cards: [...newCards, ...s.project.cards],
+          boards: [...s.project.boards, newBoard],
+          updatedAt: ts,
+        },
+        currentBoardId: newBoard.id,
+        dirty: true,
+      };
+    });
+    return createdBoardId;
+  },
 }));
 
 /* ------------------------------------------------------------------ *

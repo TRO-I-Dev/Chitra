@@ -23,6 +23,9 @@ importers:
       '@chitra/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@chitra/templates':
+        specifier: workspace:*
+        version: link:../../packages/templates
       '@dagrejs/dagre':
         specifier: 1.1.4
         version: 1.1.4
@@ -112,6 +115,19 @@ importers:
       zod:
         specifier: 3.23.8
         version: 3.23.8
+    devDependencies:
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+
+  packages/templates:
+    dependencies:
+      '@chitra/core':
+        specifier: workspace:*
+        version: link:../core
+      nanoid:
+        specifier: 5.0.7
+        version: 5.0.7
     devDependencies:
       typescript:
         specifier: 5.6.3
