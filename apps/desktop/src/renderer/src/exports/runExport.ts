@@ -5,6 +5,7 @@ import {
   projectToPrintHtml,
 } from "@chitra/exports";
 import type { Project } from "@chitra/core";
+import { projectToDocxBytes } from "./docxBuilder.js";
 
 const REACT_FLOW_SELECTOR = ".react-flow__viewport";
 
@@ -101,4 +102,27 @@ export async function exportPdf(
     landscape: false,
   });
   return res?.path ?? null;
+}
+
+export async function exportDocx(project: Project): Promise<string | null> {
+  const bytes = await projectToDocxBytes(project);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i] ?? 0);
+  const base64 = btoa(bin);
+  const res = await window.chitra.fileSave({
+    suggestedName: sanitizeFilename(project.name, "docx"),
+    filters: [{ name: "Word document", extensions: ["docx"] }],
+    payload: { kind: "base64", base64 },
+  });
+  return res?.path ?? null;
+}
+
+export async function publishNotion(project: Project): Promise<string | null> {
+  const res = await window.chitra.publishNotion({ project });
+  return res?.url ?? null;
+}
+
+export async function publishConfluence(project: Project): Promise<string | null> {
+  const res = await window.chitra.publishConfluence({ project });
+  return res?.url ?? null;
 }

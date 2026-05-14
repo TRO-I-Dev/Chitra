@@ -15,6 +15,10 @@ import {
 } from "@chitra/core";
 import { readProjectFile, writeProjectFile } from "./projectFile.js";
 import { clearRecents, listRecents, pushRecent } from "./recents.js";
+import { getSettings, setSettings } from "./settings.js";
+import { deleteSecret, getSecret, setSecret } from "./secrets.js";
+import { publishToNotion } from "./publishers/notion.js";
+import { publishToConfluence } from "./publishers/confluence.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -200,6 +204,57 @@ function registerAllHandlers(): void {
     } finally {
       offscreen.destroy();
     }
+  });
+
+  // Settings (non-secret JSON in userData)
+  register(IpcChannel.SettingsGet, () => getSettings());
+  register(IpcChannel.SettingsSet, async (patch) => {
+    await setSettings(patch);
+    return { ok: true as const };
+  });
+
+  // Secrets (keytar with in-memory fallback)
+  register(IpcChannel.SecretGet, async ({ key }) => ({ value: await getSecret(key) }));
+  register(IpcChannel.SecretSet, async ({ key, value }) => {
+    await setSecret(key, value);
+    return { ok: true as const };
+  });
+  register(IpcChannel.SecretDelete, async ({ key }) => {
+    await deleteSecret(key);
+    return { ok: true as const };
+  });
+
+  // Publish — Notion
+  register(IpcChannel.PublishNotion, async ({ project, boardId }) => {
+    const [token, settings] = await Promise.all([getSecret("notion-token"), getSettings()]);
+    if (!token) throw new Error("Set your Notion integration token in Settings first.");
+    if (!settings.notionParentPageId)
+      throw new Error("Set the Notion parent page id in Settings first.");
+    return publishToNotion({
+      token,
+      parentPageId: settings.notionParentPageId,
+      project,
+      ...(boardId !== undefined ? { boardId } : {}),
+    });
+  });
+
+  // Publish — Confluence
+  register(IpcChannel.PublishConfluence, async ({ project, boardId }) => {
+    const [token, settings] = await Promise.all([
+      getSecret("confluence-token"),
+      getSettings(),
+    ]);
+    if (!token) throw new Error("Set your Confluence API token in Settings first.");
+    if (!settings.confluenceBaseUrl || !settings.confluenceEmail || !settings.confluenceSpaceKey)
+      throw new Error("Set your Confluence base URL, email and space key in Settings first.");
+    return publishToConfluence({
+      baseUrl: settings.confluenceBaseUrl,
+      email: settings.confluenceEmail,
+      token,
+      spaceKey: settings.confluenceSpaceKey,
+      project,
+      ...(boardId !== undefined ? { boardId } : {}),
+    });
   });
 }
 

@@ -21,6 +21,13 @@ export const IpcChannel = {
   RecentsClear: "recents:clear",
   FileSave: "file:save",
   ExportPdf: "export:pdf",
+  SettingsGet: "settings:get",
+  SettingsSet: "settings:set",
+  SecretGet: "secret:get",
+  SecretSet: "secret:set",
+  SecretDelete: "secret:delete",
+  PublishNotion: "publish:notion",
+  PublishConfluence: "publish:confluence",
 } as const;
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel];
 
@@ -78,6 +85,47 @@ export const IpcSchemas = {
       landscape: z.boolean().default(false),
     }),
     response: z.object({ path: z.string() }).nullable(),
+  },
+  [IpcChannel.SettingsGet]: {
+    request: z.void(),
+    response: z.object({
+      notionParentPageId: z.string().optional(),
+      confluenceBaseUrl: z.string().optional(),
+      confluenceEmail: z.string().optional(),
+      confluenceSpaceKey: z.string().optional(),
+    }),
+  },
+  [IpcChannel.SettingsSet]: {
+    request: z.object({
+      notionParentPageId: z.string().optional(),
+      confluenceBaseUrl: z.string().optional(),
+      confluenceEmail: z.string().optional(),
+      confluenceSpaceKey: z.string().optional(),
+    }),
+    response: z.object({ ok: z.literal(true) }),
+  },
+  [IpcChannel.SecretGet]: {
+    request: z.object({ key: z.enum(["notion-token", "confluence-token"]) }),
+    response: z.object({ value: z.string().nullable() }),
+  },
+  [IpcChannel.SecretSet]: {
+    request: z.object({
+      key: z.enum(["notion-token", "confluence-token"]),
+      value: z.string(),
+    }),
+    response: z.object({ ok: z.literal(true) }),
+  },
+  [IpcChannel.SecretDelete]: {
+    request: z.object({ key: z.enum(["notion-token", "confluence-token"]) }),
+    response: z.object({ ok: z.literal(true) }),
+  },
+  [IpcChannel.PublishNotion]: {
+    request: z.object({ project: Project, boardId: z.string().optional() }),
+    response: z.object({ url: z.string() }).nullable(),
+  },
+  [IpcChannel.PublishConfluence]: {
+    request: z.object({ project: Project, boardId: z.string().optional() }),
+    response: z.object({ url: z.string() }).nullable(),
   },
 } as const satisfies Record<IpcChannel, { request: z.ZodTypeAny; response: z.ZodTypeAny }>;
 

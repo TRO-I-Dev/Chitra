@@ -7,6 +7,7 @@ import { Inbox } from "./Inbox.js";
 import { Composer } from "./Composer.js";
 import { Templates } from "./Templates.js";
 import { ExportMenu } from "./ExportMenu.js";
+import { Settings } from "./Settings.js";
 import { Canvas } from "../canvas/Canvas.js";
 import type { CardType } from "@chitra/core";
 
@@ -26,6 +27,7 @@ export function Workspace(): JSX.Element {
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -109,7 +111,8 @@ export function Workspace(): JSX.Element {
         </div>
         <div className="flex items-center gap-1.5">
           <BarBtn onClick={() => setTemplatesOpen(true)}>Templates</BarBtn>
-          <ExportMenu project={project} />
+          <ExportMenu project={project} onOpenSettings={() => setSettingsOpen(true)} />
+          <BarBtn onClick={() => setSettingsOpen(true)}>⚙</BarBtn>
           <BarBtn onClick={toggleTheme}>
             {themeMode === "studio" ? "◐ Calm" : "◑ Studio"}
           </BarBtn>
@@ -153,6 +156,7 @@ export function Workspace(): JSX.Element {
       />
 
       <Templates open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
+      <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
     </div>
   );
 }

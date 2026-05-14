@@ -30,6 +30,17 @@ const api = {
   recentsClear: () => invoke(IpcChannel.RecentsClear, undefined as never),
   fileSave: (args: IpcRequest<typeof IpcChannel.FileSave>) => invoke(IpcChannel.FileSave, args),
   exportPdf: (args: IpcRequest<typeof IpcChannel.ExportPdf>) => invoke(IpcChannel.ExportPdf, args),
+  settingsGet: () => invoke(IpcChannel.SettingsGet, undefined as never),
+  settingsSet: (args: IpcRequest<typeof IpcChannel.SettingsSet>) =>
+    invoke(IpcChannel.SettingsSet, args),
+  secretGet: (args: IpcRequest<typeof IpcChannel.SecretGet>) => invoke(IpcChannel.SecretGet, args),
+  secretSet: (args: IpcRequest<typeof IpcChannel.SecretSet>) => invoke(IpcChannel.SecretSet, args),
+  secretDelete: (args: IpcRequest<typeof IpcChannel.SecretDelete>) =>
+    invoke(IpcChannel.SecretDelete, args),
+  publishNotion: (args: IpcRequest<typeof IpcChannel.PublishNotion>) =>
+    invoke(IpcChannel.PublishNotion, args),
+  publishConfluence: (args: IpcRequest<typeof IpcChannel.PublishConfluence>) =>
+    invoke(IpcChannel.PublishConfluence, args),
 } as const;
 
 export type ChitraApi = typeof api;
