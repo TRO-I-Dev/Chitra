@@ -70,15 +70,9 @@ export function CardInspector({
     setPriority(getCardPriority(card));
   }, [card?.id]);
 
-  if (!card) {
-    return (
-      <AnimatePresence>{null}</AnimatePresence>
-    );
-  }
-
-  const buildPatch = (): Parameters<typeof updateCard>[1] => {
+  const buildPatch = (baseCard: Card): Parameters<typeof updateCard>[1] => {
     const meta: Record<string, unknown> = {
-      ...((card.metadata as Record<string, unknown>) ?? {}),
+      ...((baseCard.metadata as Record<string, unknown>) ?? {}),
     };
     if (status) meta["status"] = status; else delete meta["status"];
     if (priority) meta["priority"] = priority; else delete meta["priority"];
@@ -94,11 +88,12 @@ export function CardInspector({
   };
 
   const save = (): void => {
-    updateCard(card.id, buildPatch());
+    if (!card) return;
+    updateCard(card.id, buildPatch(card));
     onClose();
   };
 
-  const dirty =
+  const dirty = card ?
     title !== card.title ||
     type !== card.type ||
     bodyText !== bodyToText(card.body) ||
@@ -106,7 +101,8 @@ export function CardInspector({
     accent !== (card.color ?? null) ||
     icon !== (card.icon ?? null) ||
     status !== getCardStatus(card) ||
-    priority !== getCardPriority(card);
+    priority !== getCardPriority(card)
+    : false;
 
   useEffect(() => {
     if (!card) return;
@@ -115,11 +111,17 @@ export function CardInspector({
       return;
     }
     if (!dirty) return;
-    const id = window.setTimeout(() => updateCardLive(card.id, buildPatch()), 120);
+    const id = window.setTimeout(() => updateCardLive(card.id, buildPatch(card)), 120);
     return () => window.clearTimeout(id);
     // `buildPatch` intentionally reads the current local form state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [card?.id, dirty, title, bodyText, type, tags, accent, icon, status, priority, updateCardLive]);
+
+  if (!card) {
+    return (
+      <AnimatePresence>{null}</AnimatePresence>
+    );
+  }
 
   return (
     <AnimatePresence>
