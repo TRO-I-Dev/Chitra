@@ -17,6 +17,7 @@
     "@chitra/core": "workspace:*",
     "@chitra/composer": "workspace:*",
     "@dagrejs/dagre": "1.1.4",
+    "@excalidraw/excalidraw": "0.17.6",
     "@xyflow/react": "12.3.2",
     "electron-updater": "6.3.9",
     "fflate": "0.8.2",

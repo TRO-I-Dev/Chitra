@@ -21,10 +21,12 @@ import "@xyflow/react/dist/style.css";
 import type { BoardEdge, BoardNode, EdgeKind } from "@chitra/core";
 import { useCardMap, useCurrentBoard, useProjectStore } from "../state/projectStore.js";
 import { useTheme } from "../state/theme.js";
+import { useMode } from "../state/mode.js";
 import { CardNode, type CardNodeData } from "./CardNode.js";
 import { EDGE_KINDS, EDGE_STYLES } from "./edgeStyles.js";
 import { autoLayout, type LayoutDirection } from "./autoLayout.js";
 import { StudioBackground } from "./StudioBackground.js";
+import { SketchOverlay } from "./SketchOverlay.js";
 
 const nodeTypes: NodeTypes = { card: CardNode };
 
@@ -42,6 +44,7 @@ function CanvasInner(): JSX.Element {
   const board = useCurrentBoard();
   const cardMap = useCardMap();
   const themeMode = useTheme((s) => s.mode);
+  const workspaceMode = useMode((s) => s.mode);
   const updateNodes = useProjectStore((s) => s.updateNodes);
   const updateEdges = useProjectStore((s) => s.updateEdges);
   const addEdge = useProjectStore((s) => s.addEdge);
@@ -191,6 +194,9 @@ function CanvasInner(): JSX.Element {
         maxZoom={2}
         fitView
         fitViewOptions={{ padding: 0.25 }}
+        nodesDraggable={workspaceMode === "structure"}
+        nodesConnectable={workspaceMode === "structure"}
+        elementsSelectable={workspaceMode === "structure"}
       >
         <Background
           variant={BackgroundVariant.Dots}
@@ -211,6 +217,9 @@ function CanvasInner(): JSX.Element {
           style={{ border: "1px solid rgba(255,255,255,0.06)", background: "#0d0d14" }}
         />
       </ReactFlow>
+
+      {/* Sketch overlay sits above React Flow; pointer-events gated by mode. */}
+      <SketchOverlay />
 
       {/* Floating control strip */}
       <div className="pointer-events-none absolute left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2">

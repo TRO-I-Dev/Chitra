@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { useProjectStore } from "../state/projectStore.js";
 import { useTheme } from "../state/theme.js";
+import { useMode, type WorkspaceMode } from "../state/mode.js";
 import { Inbox } from "./Inbox.js";
 import { Composer } from "./Composer.js";
 import { Canvas } from "../canvas/Canvas.js";
@@ -18,6 +19,8 @@ export function Workspace(): JSX.Element {
   const closeProject = useProjectStore((s) => s.closeProject);
   const themeMode = useTheme((s) => s.mode);
   const toggleTheme = useTheme((s) => s.toggle);
+  const workMode = useMode((s) => s.mode);
+  const setWorkMode = useMode((s) => s.setMode);
 
   const [composerOpen, setComposerOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -78,7 +81,7 @@ export function Workspace(): JSX.Element {
   return (
     <div className="flex h-full w-full flex-col">
       {/* Title bar */}
-      <header className="titlebar flex h-10 shrink-0 items-center justify-between border-b border-white/5 bg-[#0a0a10] px-4 text-xs text-[var(--color-ink-dim)]">
+      <header className="titlebar relative flex h-10 shrink-0 items-center justify-between border-b border-white/5 bg-[#0a0a10] px-4 text-xs text-[var(--color-ink-dim)]">
         <div className="flex items-center gap-3">
           <span className="inline-block h-2.5 w-2.5 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-2)]" />
           <span className="font-semibold text-[var(--color-ink)]">{project.name}</span>
@@ -95,6 +98,11 @@ export function Workspace(): JSX.Element {
           {!dirty && lastSavedAt && (
             <span className="opacity-60">saved {timeAgo(lastSavedAt)}</span>
           )}
+        </div>
+
+        {/* Center mode strip */}
+        <div className="absolute left-1/2 -translate-x-1/2">
+          <ModeStrip mode={workMode} onChange={setWorkMode} />
         </div>
         <div className="flex items-center gap-1.5">
           <BarBtn onClick={toggleTheme}>
@@ -184,4 +192,43 @@ function timeAgo(iso: string): string {
   const h = Math.round(m / 60);
   if (h < 24) return `${h} h ago`;
   return new Date(iso).toLocaleDateString();
+}
+
+function ModeStrip({
+  mode,
+  onChange,
+}: {
+  mode: WorkspaceMode;
+  onChange: (m: WorkspaceMode) => void;
+}): JSX.Element {
+  const items: Array<{ value: WorkspaceMode; label: string; icon: string }> = [
+    { value: "structure", label: "Structure", icon: "▣" },
+    { value: "sketch", label: "Sketch", icon: "✎" },
+  ];
+  return (
+    <div className="relative flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 p-0.5 text-[11px] backdrop-blur-md">
+      {items.map((it) => {
+        const active = mode === it.value;
+        return (
+          <button
+            key={it.value}
+            type="button"
+            onClick={() => onChange(it.value)}
+            className="relative z-10 px-3 py-1 transition"
+            style={{ color: active ? "#0b0b10" : "rgba(231,231,238,0.7)" }}
+          >
+            {active && (
+              <motion.span
+                layoutId="mode-pill"
+                className="absolute inset-0 -z-10 rounded-full bg-gradient-to-br from-[var(--color-accent)] to-[var(--color-accent-2)]"
+                transition={{ type: "spring", stiffness: 500, damping: 32 }}
+              />
+            )}
+            <span className="mr-1">{it.icon}</span>
+            {it.label}
+          </button>
+        );
+      })}
+    </div>
+  );
 }

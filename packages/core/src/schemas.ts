@@ -82,6 +82,8 @@ export const Board = z.object({
   templateId: z.string().optional(),
   nodes: z.array(BoardNode).default([]),
   edges: z.array(BoardEdge).default([]),
+  /** Optional Excalidraw scene data ({ elements, appState, files }). */
+  sketch: z.record(z.unknown()).optional(),
 });
 export type Board = z.infer<typeof Board>;
 

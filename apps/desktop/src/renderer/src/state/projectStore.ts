@@ -41,6 +41,9 @@ export interface ProjectState {
   addEdge: (input: { source: string; target: string; kind?: EdgeKind }) => BoardEdge | null;
   updateEdges: (updater: (edges: BoardEdge[]) => BoardEdge[]) => void;
   removeEdge: (edgeId: string) => void;
+
+  // Sketch overlay (per current board)
+  setBoardSketch: (sketch: Record<string, unknown>) => void;
 }
 
 function nowIso(): string {
@@ -197,6 +200,15 @@ export const useProjectStore = create<ProjectState>((set, get) => ({
           ...b,
           edges: b.edges.filter((e) => e.id !== edgeId),
         })),
+        dirty: true,
+      };
+    }),
+
+  setBoardSketch: (sketch) =>
+    set((s) => {
+      if (!s.project || !s.currentBoardId) return s;
+      return {
+        project: patchBoard(s.project, s.currentBoardId, (b) => ({ ...b, sketch })),
         dirty: true,
       };
     }),
