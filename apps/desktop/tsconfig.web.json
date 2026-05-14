@@ -1,0 +1,15 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client"],
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "outDir": "out/renderer",
+    "noEmit": true,
+    "paths": {
+      "@renderer/*": ["./src/renderer/src/*"],
+      "@chitra/core": ["../../packages/core/src/index.ts"],
+      "@chitra/core/*": ["../../packages/core/src/*"]
+    }
+  },
+  "include": ["src/renderer/**/*", "src/preload/**/*.d.ts"]
+}

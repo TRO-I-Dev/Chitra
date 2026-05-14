@@ -1,0 +1,52 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fraunces", "Inter", ui-serif, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+
+  --color-canvas: #0b0b10;
+  --color-canvas-2: #111119;
+  --color-ink: #e7e7ee;
+  --color-ink-dim: #9a9aaa;
+  --color-accent: #7c5cff;
+  --color-accent-2: #21d4fd;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  font-feature-settings: "cv11", "ss01", "ss03";
+  overflow: hidden;
+}
+
+/* Studio gradient background, pre-Konva placeholder */
+.studio-bg {
+  background:
+    radial-gradient(1200px 600px at 10% -10%, rgba(124, 92, 255, 0.18), transparent 60%),
+    radial-gradient(900px 500px at 110% 110%, rgba(33, 212, 253, 0.14), transparent 60%),
+    linear-gradient(180deg, #0b0b10 0%, #0b0b14 100%);
+}
+
+/* Subtle dot grid */
+.dot-grid {
+  background-image: radial-gradient(rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 22px 22px;
+  background-position: -1px -1px;
+}
+
+/* Drag region for hidden-inset title bar */
+.titlebar {
+  -webkit-app-region: drag;
+}
+.titlebar button,
+.titlebar a,
+.titlebar input {
+  -webkit-app-region: no-drag;
+}

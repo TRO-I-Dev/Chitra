@@ -1,0 +1,22 @@
+appId: com.chitra.studio
+productName: Chitra
+directories:
+  buildResources: build
+  output: release
+files:
+  - "out/**/*"
+  - "package.json"
+  - "!**/*.map"
+  - "!node_modules/**/{CHANGELOG.md,README.md,readme.md,LICENSE,*.d.ts,*.ts}"
+asar: true
+win:
+  target:
+    - nsis
+  artifactName: ${productName}-Setup-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+publish: null
