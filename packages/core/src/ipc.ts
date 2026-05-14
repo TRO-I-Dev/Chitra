@@ -19,8 +19,19 @@ export const IpcChannel = {
   ProjectSaveAs: "project:saveAs",
   RecentsList: "recents:list",
   RecentsClear: "recents:clear",
+  FileSave: "file:save",
+  ExportPdf: "export:pdf",
 } as const;
 export type IpcChannel = (typeof IpcChannel)[keyof typeof IpcChannel];
+
+/** File-save filter shape mirrors Electron's `dialog.FileFilter`. */
+const FileFilter = z.object({ name: z.string(), extensions: z.array(z.string()) });
+
+/** Encoded payload accepted by the generic file:save channel. */
+const FilePayload = z.union([
+  z.object({ kind: z.literal("text"), text: z.string() }),
+  z.object({ kind: z.literal("base64"), base64: z.string() }),
+]);
 
 /** Request / response schemas keyed by channel. */
 export const IpcSchemas = {
@@ -51,6 +62,22 @@ export const IpcSchemas = {
   [IpcChannel.RecentsClear]: {
     request: z.void(),
     response: z.object({ ok: z.literal(true) }),
+  },
+  [IpcChannel.FileSave]: {
+    request: z.object({
+      suggestedName: z.string(),
+      filters: z.array(FileFilter).default([]),
+      payload: FilePayload,
+    }),
+    response: z.object({ path: z.string() }).nullable(),
+  },
+  [IpcChannel.ExportPdf]: {
+    request: z.object({
+      suggestedName: z.string(),
+      html: z.string(),
+      landscape: z.boolean().default(false),
+    }),
+    response: z.object({ path: z.string() }).nullable(),
   },
 } as const satisfies Record<IpcChannel, { request: z.ZodTypeAny; response: z.ZodTypeAny }>;
 

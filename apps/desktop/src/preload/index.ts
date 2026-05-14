@@ -28,6 +28,8 @@ const api = {
     invoke(IpcChannel.ProjectSaveAs, args),
   recentsList: () => invoke(IpcChannel.RecentsList, undefined as never),
   recentsClear: () => invoke(IpcChannel.RecentsClear, undefined as never),
+  fileSave: (args: IpcRequest<typeof IpcChannel.FileSave>) => invoke(IpcChannel.FileSave, args),
+  exportPdf: (args: IpcRequest<typeof IpcChannel.ExportPdf>) => invoke(IpcChannel.ExportPdf, args),
 } as const;
 
 export type ChitraApi = typeof api;

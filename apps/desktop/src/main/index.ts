@@ -1,6 +1,7 @@
 import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
 import { basename, dirname, join } from "node:path";
+import { writeFile } from "node:fs/promises";
 import { nanoid } from "nanoid";
 import {
   IpcChannel,
@@ -152,6 +153,53 @@ function registerAllHandlers(): void {
   register(IpcChannel.RecentsClear, async () => {
     await clearRecents();
     return { ok: true as const };
+  });
+
+  // Generic file save: renderer hands us bytes + suggested filename, we
+  // prompt the OS save dialog and write to disk.
+  register(IpcChannel.FileSave, async ({ suggestedName, filters, payload }) => {
+    if (!mainWindow) return null;
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Export",
+      defaultPath: suggestedName,
+      filters,
+    });
+    if (result.canceled || !result.filePath) return null;
+    if (payload.kind === "text") {
+      await writeFile(result.filePath, payload.text, "utf8");
+    } else {
+      await writeFile(result.filePath, Buffer.from(payload.base64, "base64"));
+    }
+    return { path: result.filePath };
+  });
+
+  // PDF export: spin up an offscreen window, load the supplied HTML, run
+  // printToPDF, then prompt the OS save dialog.
+  register(IpcChannel.ExportPdf, async ({ suggestedName, html, landscape }) => {
+    if (!mainWindow) return null;
+    const offscreen = new BrowserWindow({
+      show: false,
+      webPreferences: { sandbox: true, contextIsolation: true, offscreen: false },
+    });
+    try {
+      await offscreen.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+      const pdfBuffer = await offscreen.webContents.printToPDF({
+        printBackground: true,
+        landscape,
+        pageSize: "A4",
+        margins: { top: 0.5, bottom: 0.5, left: 0.5, right: 0.5 },
+      });
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: "Export PDF",
+        defaultPath: suggestedName.endsWith(".pdf") ? suggestedName : `${suggestedName}.pdf`,
+        filters: [{ name: "PDF", extensions: ["pdf"] }],
+      });
+      if (result.canceled || !result.filePath) return null;
+      await writeFile(result.filePath, pdfBuffer);
+      return { path: result.filePath };
+    } finally {
+      offscreen.destroy();
+    }
   });
 }
 

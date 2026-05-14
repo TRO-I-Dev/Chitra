@@ -23,6 +23,9 @@ importers:
       '@chitra/core':
         specifier: workspace:*
         version: link:../../packages/core
+      '@chitra/exports':
+        specifier: workspace:*
+        version: link:../../packages/exports
       '@chitra/templates':
         specifier: workspace:*
         version: link:../../packages/templates
@@ -44,6 +47,9 @@ importers:
       framer-motion:
         specifier: 11.11.1
         version: 11.11.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      html-to-image:
+        specifier: 1.11.11
+        version: 1.11.11
       konva:
         specifier: 9.3.16
         version: 9.3.16
@@ -115,6 +121,16 @@ importers:
       zod:
         specifier: 3.23.8
         version: 3.23.8
+    devDependencies:
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+
+  packages/exports:
+    dependencies:
+      '@chitra/core':
+        specifier: workspace:*
+        version: link:../core
     devDependencies:
       typescript:
         specifier: 5.6.3
@@ -1517,6 +1533,9 @@ packages:
   hosted-git-info@4.1.0:
     resolution: {integrity: sha512-kyCuEOWjJqZuDbRHzL8V93NzQhwIB71oFWSyzVo+KPZI+pnQPPxucdkrOZvkLRnrf5URsQM+IJ09Dw29cRALIA==}
     engines: {node: '>=10'}
+
+  html-to-image@1.11.11:
+    resolution: {integrity: sha512-9gux8QhvjRO/erSnDPv28noDZcPZmYE7e1vFsBLKLlRlKDSqNJYebj6Qz1TGd5lsRV+X+xYyjCKjuZdABinWjA==}
 
   http-cache-semantics@4.2.0:
     resolution: {integrity: sha512-dTxcvPXqPvXBQpq5dUr6mEMJX4oIEFv6bwom3FDwKRDsuIjjJGANqhBuoAn9c1RQJIdAKav33ED65E2ys+87QQ==}
@@ -4021,6 +4040,8 @@ snapshots:
   hosted-git-info@4.1.0:
     dependencies:
       lru-cache: 6.0.0
+
+  html-to-image@1.11.11: {}
 
   http-cache-semantics@4.2.0: {}
 
