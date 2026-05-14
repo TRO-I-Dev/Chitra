@@ -5,9 +5,10 @@ import type { RecentProject } from "@chitra/core";
 interface Props {
   onCreate: (name: string) => void;
   onOpen: (path?: string) => void;
+  onSample: () => void;
 }
 
-export function Welcome({ onCreate, onOpen }: Props): JSX.Element {
+export function Welcome({ onCreate, onOpen, onSample }: Props): JSX.Element {
   const [name, setName] = useState("");
   const [recents, setRecents] = useState<RecentProject[]>([]);
 
@@ -68,6 +69,14 @@ export function Welcome({ onCreate, onOpen }: Props): JSX.Element {
             className="mt-3 text-sm text-[var(--color-ink-dim)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
           >
             …or open an existing .chitra file
+          </button>
+
+          <button
+            type="button"
+            onClick={onSample}
+            className="mt-3 ml-4 text-sm text-[var(--color-ink-dim)] underline-offset-4 hover:text-[var(--color-ink)] hover:underline"
+          >
+            …or try a sample project
           </button>
         </motion.section>
 

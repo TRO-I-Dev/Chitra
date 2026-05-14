@@ -19,6 +19,7 @@ import { getSettings, setSettings } from "./settings.js";
 import { deleteSecret, getSecret, setSecret } from "./secrets.js";
 import { publishToNotion } from "./publishers/notion.js";
 import { publishToConfluence } from "./publishers/confluence.js";
+import { setupAutoUpdater } from "./updater.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -265,6 +266,7 @@ function registerAllHandlers(): void {
 void app.whenReady().then(() => {
   registerAllHandlers();
   createMainWindow();
+  setupAutoUpdater();
 
   app.on("activate", () => {
     if (BrowserWindow.getAllWindows().length === 0) createMainWindow();
