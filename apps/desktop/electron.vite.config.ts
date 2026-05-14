@@ -5,7 +5,7 @@ import tailwind from "@tailwindcss/vite";
 
 export default defineConfig({
   main: {
-    plugins: [externalizeDepsPlugin({ exclude: ["@chitra/core"] })],
+    plugins: [externalizeDepsPlugin({ exclude: ["@chitra/core", "@chitra/composer"] })],
     build: {
       rollupOptions: {
         input: { index: resolve(__dirname, "src/main/index.ts") },
@@ -18,7 +18,7 @@ export default defineConfig({
     },
   },
   preload: {
-    plugins: [externalizeDepsPlugin({ exclude: ["@chitra/core"] })],
+    plugins: [externalizeDepsPlugin({ exclude: ["@chitra/core", "@chitra/composer"] })],
     build: {
       rollupOptions: {
         input: { index: resolve(__dirname, "src/preload/index.ts") },

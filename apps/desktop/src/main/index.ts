@@ -1,7 +1,19 @@
-import { app, BrowserWindow, ipcMain, shell } from "electron";
+import { app, BrowserWindow, dialog, ipcMain, shell } from "electron";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
-import { IpcChannel, IpcSchemas, type IpcChannel as Channel } from "@chitra/core/ipc";
+import { basename, dirname, join } from "node:path";
+import { nanoid } from "nanoid";
+import {
+  IpcChannel,
+  IpcSchemas,
+  PROJECT_FILE_EXT,
+  PROJECT_SCHEMA_VERSION,
+  type IpcChannel as Channel,
+  type IpcRequest,
+  type IpcResponse,
+  type Project as TProject,
+} from "@chitra/core";
+import { readProjectFile, writeProjectFile } from "./projectFile.js";
+import { clearRecents, listRecents, pushRecent } from "./recents.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +43,9 @@ function createMainWindow(): void {
   });
 
   mainWindow.on("ready-to-show", () => mainWindow?.show());
+  mainWindow.on("closed", () => {
+    mainWindow = null;
+  });
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     void shell.openExternal(url);
@@ -49,17 +64,55 @@ function createMainWindow(): void {
  * ------------------------------------------------------------------ */
 
 type Handler<C extends Channel> = (
-  args: import("@chitra/core/ipc").IpcRequest<C>,
-) => Promise<import("@chitra/core/ipc").IpcResponse<C>> | import("@chitra/core/ipc").IpcResponse<C>;
+  args: IpcRequest<C>,
+) => Promise<IpcResponse<C>> | IpcResponse<C>;
 
 function register<C extends Channel>(channel: C, handler: Handler<C>): void {
   const schema = IpcSchemas[channel];
   ipcMain.handle(channel, async (_event, raw: unknown) => {
-    // void requests come through as `undefined` — zod's `void()` accepts that.
     const parsed = schema.request.parse(raw);
     const result = await handler(parsed as never);
     return schema.response.parse(result);
   });
+}
+
+function nowIso(): string {
+  return new Date().toISOString();
+}
+
+function newProject(name: string): TProject {
+  const ts = nowIso();
+  return {
+    id: nanoid(),
+    name,
+    schemaVersion: PROJECT_SCHEMA_VERSION,
+    createdAt: ts,
+    updatedAt: ts,
+    cards: [],
+    boards: [{ id: nanoid(), name: "Main board", nodes: [], edges: [] }],
+  };
+}
+
+async function pickOpenPath(): Promise<string | null> {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: "Open Chitra project",
+    filters: [{ name: "Chitra project", extensions: ["chitra"] }],
+    properties: ["openFile"],
+  });
+  if (result.canceled || result.filePaths.length === 0) return null;
+  return result.filePaths[0] ?? null;
+}
+
+async function pickSavePath(suggestedName: string): Promise<string | null> {
+  if (!mainWindow) return null;
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: "Save Chitra project",
+    defaultPath: `${suggestedName}${PROJECT_FILE_EXT}`,
+    filters: [{ name: "Chitra project", extensions: ["chitra"] }],
+  });
+  if (result.canceled || !result.filePath) return null;
+  return result.filePath;
 }
 
 function registerAllHandlers(): void {
@@ -69,18 +122,37 @@ function registerAllHandlers(): void {
     node: process.versions.node,
   }));
 
-  // Phase-1 handlers (project:new, project:open, project:save*, recents:*)
-  // are stubbed to throw until the storage layer lands. The contract is in
-  // place so the renderer can be wired against final types.
-  const stub = (channel: string) => () => {
-    throw new Error(`IPC '${channel}' is not implemented yet (Phase 1).`);
-  };
-  ipcMain.handle(IpcChannel.ProjectNew, stub(IpcChannel.ProjectNew));
-  ipcMain.handle(IpcChannel.ProjectOpen, stub(IpcChannel.ProjectOpen));
-  ipcMain.handle(IpcChannel.ProjectSave, stub(IpcChannel.ProjectSave));
-  ipcMain.handle(IpcChannel.ProjectSaveAs, stub(IpcChannel.ProjectSaveAs));
-  ipcMain.handle(IpcChannel.RecentsList, stub(IpcChannel.RecentsList));
-  ipcMain.handle(IpcChannel.RecentsClear, stub(IpcChannel.RecentsClear));
+  register(IpcChannel.ProjectNew, ({ name }) => newProject(name));
+
+  register(IpcChannel.ProjectOpen, async ({ path }) => {
+    const target = path ?? (await pickOpenPath());
+    if (!target) return null;
+    const { project } = await readProjectFile(target);
+    await pushRecent({ path: target, name: project.name, lastOpenedAt: nowIso() });
+    return { path: target, project };
+  });
+
+  register(IpcChannel.ProjectSave, async ({ path, project }) => {
+    const { savedAt } = await writeProjectFile(path, project, app.getVersion());
+    await pushRecent({ path, name: project.name, lastOpenedAt: savedAt });
+    return { path, savedAt };
+  });
+
+  register(IpcChannel.ProjectSaveAs, async ({ project }) => {
+    const target = await pickSavePath(project.name || "Untitled");
+    if (!target) return null;
+    const { savedAt } = await writeProjectFile(target, project, app.getVersion());
+    const name = basename(target, PROJECT_FILE_EXT);
+    await pushRecent({ path: target, name: project.name || name, lastOpenedAt: savedAt });
+    return { path: target, savedAt };
+  });
+
+  register(IpcChannel.RecentsList, () => listRecents());
+
+  register(IpcChannel.RecentsClear, async () => {
+    await clearRecents();
+    return { ok: true as const };
+  });
 }
 
 /* ------------------------------------------------------------------ *
