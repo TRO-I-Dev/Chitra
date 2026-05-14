@@ -240,6 +240,19 @@ export function Workspace(): JSX.Element {
         card={inspectorCardId ? project.cards.find((c) => c.id === inspectorCardId) ?? null : null}
         onClose={() => setInspectorCardId(null)}
       />
+
+      {/* Status footer */}
+      <footer className="flex h-6 shrink-0 items-center justify-between border-t border-white/5 bg-[#0a0a10] px-3 text-[10px] text-[var(--color-ink-dim)]">
+        <div className="flex items-center gap-3">
+          <span>{project.cards.length} cards · {project.boards.length} board{project.boards.length === 1 ? "" : "s"}</span>
+        </div>
+        <div className="flex items-center gap-3">
+          <span><kbd className="rounded bg-white/5 px-1">Ctrl+N</kbd> compose</span>
+          <span><kbd className="rounded bg-white/5 px-1">Ctrl+Z</kbd> undo</span>
+          <span><kbd className="rounded bg-white/5 px-1">Ctrl+S</kbd> save</span>
+          <span><kbd className="rounded bg-white/5 px-1">Ctrl+T</kbd> templates</span>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -295,6 +308,9 @@ function BoardTabs(): JSX.Element | null {
   const boards = useProjectStore((s) => s.project?.boards ?? []);
   const currentId = useProjectStore((s) => s.currentBoardId);
   const setCurrent = useProjectStore((s) => s.setCurrentBoard);
+  const addBoard = useProjectStore((s) => s.addBoard);
+  const renameBoard = useProjectStore((s) => s.renameBoard);
+  const removeBoard = useProjectStore((s) => s.removeBoard);
   if (boards.length === 0) return null;
   return (
     <div className="flex h-9 shrink-0 items-center gap-1 overflow-x-auto border-b border-white/5 bg-[#0a0a10]/80 px-3 backdrop-blur">
@@ -305,12 +321,21 @@ function BoardTabs(): JSX.Element | null {
             key={b.id}
             type="button"
             onClick={() => setCurrent(b.id)}
+            onDoubleClick={() => {
+              const name = prompt("Rename board", b.name);
+              if (name !== null) renameBoard(b.id, name);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              if (boards.length > 1 && confirm(`Delete board “${b.name}”?`)) removeBoard(b.id);
+            }}
             className={[
               "relative rounded-md px-3 py-1 text-xs transition",
               active
                 ? "bg-white/5 text-[var(--color-ink)]"
                 : "text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]",
             ].join(" ")}
+            title="Double-click to rename, right-click to delete"
           >
             {active && (
               <motion.span
@@ -323,6 +348,14 @@ function BoardTabs(): JSX.Element | null {
           </button>
         );
       })}
+      <button
+        type="button"
+        onClick={() => addBoard()}
+        title="New empty board"
+        className="ml-1 rounded-md px-2 py-1 text-xs text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]"
+      >
+        + Board
+      </button>
     </div>
   );
 }

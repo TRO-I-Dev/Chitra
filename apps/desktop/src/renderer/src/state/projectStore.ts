@@ -50,6 +50,11 @@ export interface ProjectState {
   // Templates
   applyTemplate: (template: Template) => string | null;
 
+  // Boards
+  addBoard: (name?: string) => string | null;
+  renameBoard: (id: string, name: string) => void;
+  removeBoard: (id: string) => void;
+
   // History
   /** @internal */
   _past: Project[];
@@ -337,6 +342,57 @@ export const useProjectStore = create<ProjectState>((set, get) => {
       };
     });
     return createdBoardId;
+  },
+
+  /* -------- Boards -------- */
+  addBoard: (name) => {
+    snapshot();
+    let createdId: string | null = null;
+    set((s) => {
+      if (!s.project) return s;
+      const board: Board = {
+        id: nanoid(),
+        name: name?.trim() || `Board ${s.project.boards.length + 1}`,
+        nodes: [],
+        edges: [],
+      };
+      createdId = board.id;
+      return {
+        project: { ...s.project, boards: [...s.project.boards, board], updatedAt: nowIso() },
+        currentBoardId: board.id,
+        dirty: true,
+      };
+    });
+    return createdId;
+  },
+
+  renameBoard: (id, name) => {
+    snapshot();
+    set((s) => {
+      if (!s.project) return s;
+      const boards = s.project.boards.map((b) =>
+        b.id === id ? { ...b, name: name.trim() || b.name } : b,
+      );
+      return { project: { ...s.project, boards, updatedAt: nowIso() }, dirty: true };
+    });
+  },
+
+  removeBoard: (id) => {
+    const s = get();
+    if (!s.project) return;
+    if (s.project.boards.length <= 1) return;
+    snapshot();
+    set((st) => {
+      if (!st.project) return st;
+      const boards = st.project.boards.filter((b) => b.id !== id);
+      const currentBoardId =
+        st.currentBoardId === id ? boards[0]?.id ?? null : st.currentBoardId;
+      return {
+        project: { ...st.project, boards, updatedAt: nowIso() },
+        currentBoardId,
+        dirty: true,
+      };
+    });
   },
 
   /* -------- History -------- */
