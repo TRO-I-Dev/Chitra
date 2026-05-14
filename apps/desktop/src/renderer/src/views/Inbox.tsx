@@ -1,5 +1,6 @@
 import type { Card } from "@chitra/core";
 import { CARD_TYPE_STYLES } from "../cardStyles.js";
+import { CARD_DRAG_MIME } from "../canvas/Canvas.js";
 
 interface Props {
   cards: Card[];
@@ -39,8 +40,13 @@ export function Inbox({ cards, onAddClick, onDelete }: Props): JSX.Element {
             return (
               <li
                 key={card.id}
+                draggable
+                onDragStart={(e) => {
+                  e.dataTransfer.setData(CARD_DRAG_MIME, card.id);
+                  e.dataTransfer.effectAllowed = "move";
+                }}
                 className={[
-                  "group rounded-xl border bg-gradient-to-br p-3 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40",
+                  "group cursor-grab rounded-xl border bg-gradient-to-br p-3 transition hover:translate-y-[-1px] hover:shadow-lg hover:shadow-black/40 active:cursor-grabbing",
                   style.tone,
                 ].join(" ")}
               >

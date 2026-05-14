@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useProjectStore } from "../state/projectStore.js";
 import { Inbox } from "./Inbox.js";
 import { Composer } from "./Composer.js";
+import { Canvas } from "../canvas/Canvas.js";
 import type { CardType } from "@chitra/core";
 
 export function Workspace(): JSX.Element {
@@ -107,18 +108,9 @@ export function Workspace(): JSX.Element {
           onDelete={(id) => removeCard(id)}
         />
 
-        {/* Studio canvas placeholder until Phase 2 */}
-        <main className="studio-bg dot-grid relative flex-1">
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <div className="text-center">
-              <div className="mb-3 text-5xl opacity-30">◇ ◆ ◇</div>
-              <p className="max-w-md text-sm text-[var(--color-ink-dim)]">
-                The studio canvas lands in <span className="text-[var(--color-ink)]">Phase 2</span>.
-                For now, compose cards on the left — they're persisted in your{" "}
-                <code className="text-[var(--color-ink)]">.chitra</code> project file.
-              </p>
-            </div>
-          </div>
+        {/* Studio canvas */}
+        <main className="relative flex-1 overflow-hidden">
+          <Canvas />
         </main>
       </div>
 

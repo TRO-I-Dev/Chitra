@@ -16,6 +16,8 @@
   "dependencies": {
     "@chitra/core": "workspace:*",
     "@chitra/composer": "workspace:*",
+    "@dagrejs/dagre": "1.1.4",
+    "@xyflow/react": "12.3.2",
     "electron-updater": "6.3.9",
     "fflate": "0.8.2",
     "nanoid": "5.0.7",
