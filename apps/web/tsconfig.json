@@ -1,0 +1,17 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "outDir": "dist",
+    "noEmit": true,
+    "paths": {
+      "@/*": ["./src/*"],
+      "@chitra/core": ["../../packages/core/src/index.ts"],
+      "@chitra/core/*": ["../../packages/core/src/*"],
+      "@chitra/composer": ["../../packages/composer/src/index.ts"],
+      "@chitra/templates": ["../../packages/templates/src/index.ts"],
+      "@chitra/exports": ["../../packages/exports/src/index.ts"]
+    }
+  },
+  "include": ["src/**/*", "vite.config.ts"]
+}

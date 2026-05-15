@@ -1,0 +1,3 @@
+# SPA fallback — kept in addition to netlify.toml redirects as a belt-and-
+# braces measure. Either alone works; both together is harmless.
+/*    /index.html    200

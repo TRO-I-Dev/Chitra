@@ -58,6 +58,7 @@ export const BoardNode = z.object({
 export type BoardNode = z.infer<typeof BoardNode>;
 
 export const EdgeKind = z.enum([
+  "straight",
   "depends-on",
   "sequence",
   "contains",
@@ -67,12 +68,42 @@ export const EdgeKind = z.enum([
 ]);
 export type EdgeKind = z.infer<typeof EdgeKind>;
 
+/** Geometric path used to render the edge. Independent of the semantic
+ *  `EdgeKind`: a "depends-on" edge can still be drawn as a straight line. */
+export const EdgeShape = z.enum(["straight", "smoothstep", "step", "bezier"]);
+export type EdgeShape = z.infer<typeof EdgeShape>;
+
+/** Stroke pattern. `solid` is the default; `dashed`/`dotted` override the
+ *  kind-default dasharray. */
+export const EdgeDash = z.enum(["solid", "dashed", "dotted"]);
+export type EdgeDash = z.infer<typeof EdgeDash>;
+
+/** Per-edge style overrides. Any field left undefined falls back to the
+ *  defaults from the edge's semantic `kind` (see `EDGE_STYLES`). */
+export const EdgeStyleOverride = z
+  .object({
+    shape: EdgeShape.optional(),
+    stroke: z.string().min(1).max(32).optional(),
+    strokeWidth: z.number().min(0.5).max(10).optional(),
+    dash: EdgeDash.optional(),
+    animated: z.boolean().optional(),
+  })
+  .strict();
+export type EdgeStyleOverride = z.infer<typeof EdgeStyleOverride>;
+
 export const BoardEdge = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
   target: z.string().min(1),
-  kind: EdgeKind.default("flows-to"),
+  /** Handle id on the source node (e.g. "r-src"). When unset, the renderer
+   *  picks the side closest to the target so the line never zig-zags
+   *  through unrelated nodes. */
+  sourceHandle: z.string().min(1).optional(),
+  /** Handle id on the target node (e.g. "l-tgt"). Same fallback rules. */
+  targetHandle: z.string().min(1).optional(),
+  kind: EdgeKind.default("straight"),
   label: z.string().optional(),
+  style: EdgeStyleOverride.optional(),
 });
 export type BoardEdge = z.infer<typeof BoardEdge>;
 
