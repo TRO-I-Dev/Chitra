@@ -16,9 +16,11 @@
   NODE_VERSION = "20.11.1"
   # Pin the package manager Netlify auto-detects via packageManager field.
   PNPM_VERSION = "9.12.0"
-  # Vite needs a production build for tree-shaking + correct `process.env`
-  # define replacement (see apps/web/vite.config.ts).
-  NODE_ENV     = "production"
+  # Do NOT set NODE_ENV=production here — it makes pnpm skip
+  # devDependencies, which removes typescript/vite/etc. from the install
+  # and breaks the workspace package builds (`tsc: not found`). Vite sets
+  # NODE_ENV=production internally for the actual bundling step.
+  NPM_CONFIG_PRODUCTION = "false"
   # Suppress the optional husky/postinstall noise on CI.
   CI           = "true"
 
