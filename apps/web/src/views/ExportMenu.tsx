@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import type { Project } from "@chitra/core";
 import {
   exportDocx,
+  exportEmbedSnippet,
   exportInteractiveHtml,
   exportJson,
   exportMarkdown,
@@ -35,6 +36,7 @@ const ITEMS: Array<{
   { id: "mermaid", group: "Diagram", label: "Mermaid (.mmd)", hint: "Flowchart source for Mermaid / GitHub", run: (p) => exportMermaid(p) },
   { id: "json", group: "Diagram", label: "Project JSON", hint: "Full project data as portable JSON", run: (p) => exportJson(p) },
   { id: "html", group: "Files", label: "Interactive HTML", hint: "Single-file shareable viewer", run: (p) => exportInteractiveHtml(p) },
+  { id: "embed", group: "Files", label: "Embed snippet", hint: "Self-contained <iframe> snippet (also copied to clipboard)", run: (p) => exportEmbedSnippet(p) },
   { id: "notion", group: "Publish", label: "Notion", hint: "Create a page under your configured parent", run: (p) => publishNotion(p) },
   { id: "confluence", group: "Publish", label: "Confluence", hint: "Create a page in your configured space", run: (p) => publishConfluence(p) },
 ];

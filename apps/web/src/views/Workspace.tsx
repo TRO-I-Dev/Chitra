@@ -10,10 +10,12 @@ import { LogoMark, Wordmark } from "../brand/Logo.js";
 const Templates = lazy(() => import("./Templates.js").then((m) => ({ default: m.Templates })));
 const ExportMenu = lazy(() => import("./ExportMenu.js").then((m) => ({ default: m.ExportMenu })));
 const Settings = lazy(() => import("./Settings.js").then((m) => ({ default: m.Settings })));
+const DecisionLog = lazy(() => import("./DecisionLog.js").then((m) => ({ default: m.DecisionLog })));
 import { CardInspector } from "./CardInspector.js";
 import { Canvas } from "../canvas/Canvas.js";
 import {
   exportDocx,
+  exportEmbedSnippet,
   exportInteractiveHtml,
   exportMarkdown,
   exportPdf,
@@ -48,6 +50,7 @@ export function Workspace(): JSX.Element {
   const [composerOpen, setComposerOpen] = useState(false);
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [decisionLogOpen, setDecisionLogOpen] = useState(false);
   const [inspectorCardId, setInspectorCardId] = useState<string | null>(null);
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -180,6 +183,9 @@ export function Workspace(): JSX.Element {
         case "ai-explain-diagram":
           void runExplainDiagram();
           break;
+        case "open-decision-log":
+          setDecisionLogOpen(true);
+          break;
         default:
           if (action.startsWith("export-") || action.startsWith("publish-")) {
             void runExportCommand(action);
@@ -197,6 +203,7 @@ export function Workspace(): JSX.Element {
     const map: Record<string, ((p: Project) => Promise<string | null>) | undefined> = {
       "export-markdown": exportMarkdown,
       "export-html": exportInteractiveHtml,
+      "export-embed": exportEmbedSnippet,
       "export-png": exportPng,
       "export-svg": exportSvg,
       "export-pdf": exportPdf,
@@ -425,6 +432,22 @@ export function Workspace(): JSX.Element {
         />
         <Templates open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
         <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+        <DecisionLog
+          open={decisionLogOpen}
+          onClose={() => setDecisionLogOpen(false)}
+          onOpenCard={(id) => {
+            // If the card has a node on another board, jump to that board first.
+            const proj = useProjectStore.getState().project;
+            if (proj) {
+              const board = proj.boards.find((b) => b.nodes.some((n) => n.cardId === id));
+              if (board && board.id !== useProjectStore.getState().currentBoardId) {
+                useProjectStore.getState().setCurrentBoard(board.id);
+              }
+            }
+            setInspectorCardId(id);
+            setInspectorCollapsed(false);
+          }}
+        />
       </Suspense>
       <CardInspector
         card={inspectorCardId ? project.cards.find((c) => c.id === inspectorCardId) ?? null : null}

@@ -38,6 +38,16 @@ function textToBody(text: string): RichDoc {
   return { type: "doc", content: paragraphs };
 }
 
+interface CardComment {
+  id: string;
+  text: string;
+  createdAt: string;
+}
+
+function nanoComment(): string {
+  return `c_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 export function CardInspector({
   card,
   onClose,
@@ -61,6 +71,68 @@ export function CardInspector({
   const [style, setStyle] = useState<CardStyle | null>(null);
   const [status, setStatus] = useState<CardStatus | null>(null);
   const [priority, setPriority] = useState<CardPriority | null>(null);
+  const [newComment, setNewComment] = useState("");
+
+  const comments: CardComment[] = (() => {
+    const raw = (card?.metadata as Record<string, unknown> | undefined)?.["comments"];
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((c): c is CardComment =>
+      c != null && typeof c === "object"
+      && typeof (c as CardComment).id === "string"
+      && typeof (c as CardComment).text === "string"
+      && typeof (c as CardComment).createdAt === "string",
+    );
+  })();
+
+  const addComment = (): void => {
+    if (!card) return;
+    const text = newComment.trim();
+    if (!text) return;
+    const next: CardComment[] = [
+      ...comments,
+      { id: nanoComment(), text, createdAt: new Date().toISOString() },
+    ];
+    const meta = { ...((card.metadata as Record<string, unknown>) ?? {}), comments: next };
+    updateCard(card.id, { metadata: meta });
+    setNewComment("");
+  };
+
+  const deleteComment = (id: string): void => {
+    if (!card) return;
+    const next = comments.filter((c) => c.id !== id);
+    const meta = { ...((card.metadata as Record<string, unknown>) ?? {}), comments: next };
+    updateCard(card.id, { metadata: meta });
+  };
+
+  const images: string[] = (() => {
+    const raw = (card?.metadata as Record<string, unknown> | undefined)?.["images"];
+    if (!Array.isArray(raw)) return [];
+    return raw.filter((s): s is string => typeof s === "string");
+  })();
+
+  const attachImage = async (file: File): Promise<void> => {
+    if (!card) return;
+    if (file.size > 2_000_000) {
+      alert("Image is larger than 2 MB. Please resize before attaching.");
+      return;
+    }
+    const dataUrl = await new Promise<string>((resolve, reject) => {
+      const r = new FileReader();
+      r.onload = () => resolve(String(r.result));
+      r.onerror = () => reject(r.error);
+      r.readAsDataURL(file);
+    });
+    const next = [...images, dataUrl];
+    const meta = { ...((card.metadata as Record<string, unknown>) ?? {}), images: next };
+    updateCard(card.id, { metadata: meta });
+  };
+
+  const removeImage = (idx: number): void => {
+    if (!card) return;
+    const next = images.filter((_, i) => i !== idx);
+    const meta = { ...((card.metadata as Record<string, unknown>) ?? {}), images: next };
+    updateCard(card.id, { metadata: meta });
+  };
 
   useEffect(() => {
     if (!card) return;
@@ -205,10 +277,54 @@ export function CardInspector({
           <textarea
             value={bodyText}
             onChange={(e) => setBody(e.target.value)}
+            onPaste={(e) => {
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const item of Array.from(items)) {
+                if (item.kind === "file" && item.type.startsWith("image/")) {
+                  const file = item.getAsFile();
+                  if (file) { e.preventDefault(); void attachImage(file); }
+                  return;
+                }
+              }
+            }}
+            onDrop={(e) => {
+              const file = e.dataTransfer?.files?.[0];
+              if (file && file.type.startsWith("image/")) {
+                e.preventDefault();
+                void attachImage(file);
+              }
+            }}
             rows={9}
-            placeholder="Body…"
+            placeholder="Body… (paste or drop images)"
             className="block w-full resize-none bg-transparent px-5 py-3 text-[15px] leading-relaxed outline-none placeholder:text-[var(--color-ink-dim)]/60"
           />
+
+          {images.length > 0 && (
+            <div className="px-5 pb-3">
+              <div className="mb-1.5 text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
+                Images ({images.length})
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {images.map((src, i) => (
+                  <div key={i} className="group relative">
+                    <img
+                      src={src}
+                      alt=""
+                      className="h-16 w-16 rounded-md border border-white/10 object-cover"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute -right-1 -top-1 hidden h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white group-hover:flex"
+                      aria-label="Remove image"
+                      title="Remove image"
+                    >×</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="border-t border-white/5 px-5 py-3">
             <div className="mb-2 text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
@@ -413,6 +529,58 @@ export function CardInspector({
               placeholder="strategy, q3, draft"
               className="w-full rounded-md border border-white/10 bg-black/40 px-3 py-1.5 text-sm outline-none placeholder:text-[var(--color-ink-dim)]/60 focus:border-[var(--color-accent)]/60"
             />
+          </div>
+
+          <div className="px-5 pb-4">
+            <label className="mb-2 block text-[10px] uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
+              Notes ({comments.length})
+            </label>
+            <div className="mb-2 space-y-1.5">
+              {comments.map((c) => (
+                <div
+                  key={c.id}
+                  className="group flex items-start gap-2 rounded-md border border-white/5 bg-black/30 px-2.5 py-1.5 text-xs text-[var(--color-ink)]"
+                >
+                  <div className="flex-1">
+                    <div className="whitespace-pre-wrap">{c.text}</div>
+                    <div className="mt-0.5 text-[10px] text-[var(--color-ink-dim)]">
+                      {new Date(c.createdAt).toLocaleString()}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => deleteComment(c.id)}
+                    className="rounded p-0.5 text-[var(--color-ink-dim)] opacity-0 transition group-hover:opacity-100 hover:bg-rose-500/10 hover:text-rose-300"
+                    aria-label="Delete note"
+                    title="Delete note"
+                  >×</button>
+                </div>
+              ))}
+              {comments.length === 0 && (
+                <div className="text-[11px] italic text-[var(--color-ink-dim)]">No notes yet.</div>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    addComment();
+                  }
+                }}
+                placeholder="Add a note… (Ctrl+Enter)"
+                rows={2}
+                className="flex-1 resize-none rounded-md border border-white/10 bg-black/40 px-2.5 py-1.5 text-xs outline-none placeholder:text-[var(--color-ink-dim)]/60 focus:border-[var(--color-accent)]/60"
+              />
+              <button
+                type="button"
+                onClick={addComment}
+                disabled={!newComment.trim()}
+                className="self-end rounded-md border border-white/10 px-2.5 py-1.5 text-xs text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)] disabled:cursor-not-allowed disabled:opacity-40"
+              >Add</button>
+            </div>
           </div>
 
           <div className="flex items-center justify-between border-t border-white/5 bg-black/30 px-5 py-3">

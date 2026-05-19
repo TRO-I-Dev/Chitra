@@ -1,5 +1,6 @@
 import { toPng, toSvg } from "html-to-image";
 import {
+  projectToEmbedSnippet,
   projectToInteractiveHtml,
   projectToMarkdown,
   projectToMermaid,
@@ -55,6 +56,19 @@ export async function exportInteractiveHtml(project: Project): Promise<string | 
     payload: { kind: "text", text: html },
   });
   return res?.path ?? null;
+}
+
+export async function exportEmbedSnippet(project: Project): Promise<string | null> {
+  const snippet = projectToEmbedSnippet(project);
+  // Copy to clipboard for one-click pasting, AND offer a download in case the
+  // browser blocks clipboard access.
+  try { await navigator.clipboard.writeText(snippet); } catch { /* ignore */ }
+  const res = await platform.fileSave({
+    suggestedName: sanitizeFilename(project.name, "embed.html"),
+    filters: [{ name: "Embed snippet", extensions: ["html"] }],
+    payload: { kind: "text", text: snippet },
+  });
+  return res?.path ?? "copied to clipboard";
 }
 
 export async function exportPng(project: Project): Promise<string | null> {

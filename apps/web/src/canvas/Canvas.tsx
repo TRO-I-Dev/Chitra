@@ -24,6 +24,7 @@ import type { BoardEdge, BoardNode, EdgeKind } from "@chitra/core";
 import { useCardMap, useCurrentBoard, useProjectStore } from "../state/projectStore.js";
 import { useMode } from "../state/mode.js";
 import { CardNode, type CardNodeData } from "./CardNode.js";
+import { FrameNode } from "./FrameNode.js";
 import { EDGE_KINDS, EDGE_STYLES, resolveEdgeStyle } from "./edgeStyles.js";
 import { EdgeStylePanel } from "./EdgeStylePanel.js";
 import { autoLayout, type LayoutDirection } from "./autoLayout.js";
@@ -38,7 +39,7 @@ import { ThemeStudio } from "../views/ThemeStudio.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 import { quickExportDiagramPng } from "../exports/runExport.js";
 
-const nodeTypes: NodeTypes = { card: CardNode };
+const nodeTypes: NodeTypes = { card: CardNode, frame: FrameNode };
 const edgeTypes: EdgeTypes = { chitra: ChitraEdge };
 
 export function Canvas({
@@ -73,6 +74,7 @@ function CanvasInner({
   const addEdge = useProjectStore((s) => s.addEdge);
   const addNodeFromCard = useProjectStore((s) => s.addNodeFromCard);
   const addCard = useProjectStore((s) => s.addCard);
+  const addFrame = useProjectStore((s) => s.addFrame);
   const removeNode = useProjectStore((s) => s.removeNode);
   const removeEdge = useProjectStore((s) => s.removeEdge);
   const pushHistory = useProjectStore((s) => s.pushHistory);
@@ -122,6 +124,23 @@ function CanvasInner({
     return board.nodes.flatMap<Node>((n) => {
       const card = cardMap.get(n.cardId);
       if (!card) return [];
+      if (n.frame) {
+        const fnode: Node = {
+          id: n.id,
+          type: "frame",
+          position: n.position,
+          // Frames render under cards so they don't intercept clicks.
+          zIndex: -1,
+          data: {
+            cardId: card.id,
+            title: card.title,
+            ...(n.frameColor ? { color: n.frameColor } : {}),
+          },
+        };
+        if (n.width !== undefined) (fnode as Node & { width?: number }).width = n.width;
+        if (n.height !== undefined) (fnode as Node & { height?: number }).height = n.height;
+        return [fnode];
+      }
       const data: CardNodeData = { card };
       if (n.width !== undefined) data.width = n.width;
       if (n.height !== undefined) data.height = n.height;
@@ -683,6 +702,19 @@ function CanvasInner({
             label="Frame"
             title="Frame selection (F)"
             onClick={frameSelection}
+          />
+          <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden="true" />
+          <LayoutBtn
+            label="+ Frame"
+            title="Add a frame container at the viewport centre"
+            onClick={() => {
+              if (!rfInstance) return;
+              const { x, y, zoom } = rfInstance.getViewport();
+              const w = window.innerWidth / 2;
+              const h = window.innerHeight / 2;
+              const center = { x: (w - x) / zoom - 180, y: (h - y) / zoom - 120 };
+              addFrame({ title: "Frame", position: center });
+            }}
           />
         </div>
 

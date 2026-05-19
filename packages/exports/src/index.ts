@@ -456,3 +456,38 @@ export function projectToInteractiveHtml(project: Project): string {
 </script>
 </body></html>`;
 }
+
+/* ------------------------------------------------------------------ *
+ *  Embeddable HTML (iframe snippet)                                   *
+ * ------------------------------------------------------------------ */
+
+/**
+ * Wrap the interactive HTML in a base64 `srcdoc` iframe snippet that
+ * can be pasted into Notion / Confluence / a static site. The iframe
+ * is self-contained — no external assets, no network requests.
+ */
+export function projectToEmbedSnippet(
+  project: Project,
+  opts: { width?: string; height?: string; title?: string } = {},
+): string {
+  const html = projectToInteractiveHtml(project);
+  const width = opts.width ?? "100%";
+  const height = opts.height ?? "600";
+  const title = (opts.title ?? `${project.name} \u2014 Chitra board`).replace(/"/g, "&quot;");
+  // Use base64 instead of raw srcdoc to avoid quote/escape headaches when
+  // pasted into HTML editors.
+  const b64 = toBase64Utf8(html);
+  return `<iframe\n  title="${title}"\n  src="data:text/html;base64,${b64}"\n  width="${width}"\n  height="${height}"\n  style="border:1px solid #2a2a35;border-radius:12px;background:#0a0a10;"\n  loading="lazy"\n  sandbox="allow-scripts allow-same-origin"\n></iframe>`;
+}
+
+function toBase64Utf8(s: string): string {
+  // Browser + node 16+ both expose btoa, but btoa is latin-1 only. Round-trip
+  // through UTF-8 bytes first.
+  const bytes = new TextEncoder().encode(s);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  // eslint-disable-next-line no-restricted-globals
+  return typeof btoa === "function"
+    ? btoa(binary)
+    : Buffer.from(bytes).toString("base64");
+}

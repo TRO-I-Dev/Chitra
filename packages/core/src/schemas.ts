@@ -89,6 +89,12 @@ export const BoardNode = z.object({
   height: z.number().optional(),
   parentId: z.string().optional(),
   locked: z.boolean().default(false),
+  /** When true, this node is a "frame" container rendered as a titled
+   *  rectangle. Frame nodes still carry a `cardId` (which acts as the
+   *  frame's title / metadata holder) but render with a distinct shape. */
+  frame: z.boolean().optional(),
+  /** Optional accent colour for a frame node (CSS hex). */
+  frameColor: z.string().optional(),
 });
 export type BoardNode = z.infer<typeof BoardNode>;
 

@@ -53,6 +53,9 @@ export interface ProjectState {
 
   // Board nodes / edges (operate on currentBoardId)
   addNodeFromCard: (cardId: string, position: { x: number; y: number }) => BoardNode | null;
+  /** Create a new frame container node on the active board. Returns the
+   *  created node, or `null` if no project / board is active. */
+  addFrame: (input: { title: string; position: { x: number; y: number }; width?: number; height?: number; color?: string }) => BoardNode | null;
   updateNodes: (updater: (nodes: BoardNode[]) => BoardNode[]) => void;
   /** Persist a node's user-resized dimensions. Snapshots history once
    *  per resize (call from NodeResizer's `onResizeEnd`). Pass `null` on
@@ -296,6 +299,44 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     set({
       project: patchBoard(project, currentBoardId, (b) => ({ ...b, nodes: [...b.nodes, node] })),
       dirty: true,
+    });
+    return node;
+  },
+
+  addFrame: ({ title, position, width = 360, height = 240, color }) => {
+    const { project, currentBoardId } = get();
+    if (!project || !currentBoardId) return null;
+    snapshot();
+    // Frames carry a stub Card so legacy code reading `cardId` stays happy.
+    const stubCard: Card = {
+      id: nanoid(),
+      type: "note",
+      title: title.trim() || "Frame",
+      body: { type: "doc", content: [{ type: "paragraph" }] },
+      tags: ["frame"],
+      metadata: { frame: true },
+      source: "typed",
+      createdAt: nowIso(),
+      updatedAt: nowIso(),
+    };
+    const node: BoardNode = {
+      id: nanoid(),
+      cardId: stubCard.id,
+      position,
+      width,
+      height,
+      locked: false,
+      frame: true,
+      ...(color ? { frameColor: color } : {}),
+    };
+    set((s) => {
+      if (!s.project || !s.currentBoardId) return s;
+      const cards = [stubCard, ...s.project.cards];
+      const proj = { ...s.project, cards, updatedAt: nowIso() };
+      return {
+        project: patchBoard(proj, s.currentBoardId, (b) => ({ ...b, nodes: [...b.nodes, node] })),
+        dirty: true,
+      };
     });
     return node;
   },
