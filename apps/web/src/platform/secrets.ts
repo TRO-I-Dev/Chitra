@@ -18,7 +18,12 @@ const SENTINEL_KEY = "secrets:sentinel";
 const SENTINEL_PLAINTEXT = "chitra-secret-ok-v1";
 const PBKDF_ITERS = 200_000;
 
-export type SecretKey = "notion-token" | "confluence-token";
+export type SecretKey =
+  | "notion-token"
+  | "confluence-token"
+  | "ai-openai-key"
+  | "ai-anthropic-key"
+  | "ai-ollama-url";
 
 interface Encrypted {
   iv: number[]; // 12 bytes

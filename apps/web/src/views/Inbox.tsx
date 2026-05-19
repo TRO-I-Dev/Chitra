@@ -22,6 +22,8 @@ interface Props {
   onDelete: (id: string) => void;
   onOpen: (id: string) => void;
   onAddToCanvas?: (id: string) => void;
+  /** Bulk-create cards from an imported file (CSV or JSON). */
+  onImportCards?: (file: File) => void | Promise<void>;
   /** Flat list of every edge across every board, used to drive the
    *  relationship filter chip row. */
   edges?: RelationshipEdge[];
@@ -37,7 +39,7 @@ const KIND_LABEL: Record<EdgeKind, string> = {
   "flows-to": "Flows to",
 };
 
-export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas, edges = [] }: Props): JSX.Element {
+export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas, onImportCards, edges = [] }: Props): JSX.Element {
   const [query, setQuery] = useState("");
   const [relFilter, setRelFilter] = useState<EdgeKind | null>(null);
 
@@ -98,6 +100,25 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas, edge
           + New
         </button>
       </div>
+
+      {onImportCards && (
+        <div className="border-b border-white/5 px-3 py-2">
+          <label className="flex cursor-pointer items-center justify-center gap-2 rounded-md border border-dashed border-white/10 px-2 py-1.5 text-[11px] text-[var(--color-ink-dim)] hover:border-[var(--color-accent)]/60 hover:text-[var(--color-ink)]"
+            title="Import cards from CSV or JSON"
+          >
+            <span>⬇ Import CSV / JSON</span>
+            <input
+              type="file"
+              accept=".csv,.json,text/csv,application/json"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) { void onImportCards(f); e.currentTarget.value = ""; }
+              }}
+            />
+          </label>
+        </div>
+      )}
 
       {cards.length > 0 && (
         <div className="border-b border-white/5 px-3 py-2">

@@ -54,6 +54,7 @@ export const COMMANDS: CommandDef[] = [
   { id: "toggle-theme", label: "Toggle theme", group: "View" },
   { id: "mode-structure", label: "Structure mode", hint: "Ctrl+1", group: "View" },
   { id: "mode-sketch", label: "Sketch mode", hint: "Ctrl+2", group: "View" },
+  { id: "ai-explain-diagram", label: "✨ Explain this diagram", group: "View" },
   { id: "show-onboarding", label: "Show onboarding", group: "Help" },
   { id: "export-markdown", label: "Export as Markdown", group: "Export" },
   { id: "export-html", label: "Export interactive HTML", group: "Export" },

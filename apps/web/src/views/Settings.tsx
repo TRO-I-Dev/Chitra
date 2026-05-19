@@ -2,7 +2,12 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { platform } from "../platform/index.js";
 
-type SecretKey = "notion-token" | "confluence-token";
+type SecretKey =
+  | "notion-token"
+  | "confluence-token"
+  | "ai-openai-key"
+  | "ai-anthropic-key"
+  | "ai-ollama-url";
 
 type Form = {
   notionParentPageId: string;
@@ -11,6 +16,9 @@ type Form = {
   confluenceEmail: string;
   confluenceSpaceKey: string;
   confluenceToken: string;
+  openaiKey: string;
+  anthropicKey: string;
+  ollamaUrl: string;
 };
 
 const EMPTY: Form = {
@@ -20,6 +28,9 @@ const EMPTY: Form = {
   confluenceEmail: "",
   confluenceSpaceKey: "",
   confluenceToken: "",
+  openaiKey: "",
+  anthropicKey: "",
+  ollamaUrl: "",
 };
 
 export function Settings({
@@ -40,10 +51,13 @@ export function Settings({
     let cancelled = false;
     void (async () => {
       try {
-        const [settings, notionToken, confluenceToken] = await Promise.all([
+        const [settings, notionToken, confluenceToken, openaiKey, anthropicKey, ollamaUrl] = await Promise.all([
           platform.settingsGet(),
           platform.secretGet({ key: "notion-token" }),
           platform.secretGet({ key: "confluence-token" }),
+          platform.secretGet({ key: "ai-openai-key" }),
+          platform.secretGet({ key: "ai-anthropic-key" }),
+          platform.secretGet({ key: "ai-ollama-url" }),
         ]);
         if (cancelled) return;
         setForm({
@@ -53,6 +67,9 @@ export function Settings({
           confluenceEmail: settings.confluenceEmail ?? "",
           confluenceSpaceKey: settings.confluenceSpaceKey ?? "",
           confluenceToken: confluenceToken.value ?? "",
+          openaiKey: openaiKey.value ?? "",
+          anthropicKey: anthropicKey.value ?? "",
+          ollamaUrl: ollamaUrl.value ?? "",
         });
         setLoaded(true);
       } catch (e) {
@@ -80,6 +97,9 @@ export function Settings({
       };
       await setOrClear("notion-token", form.notionToken);
       await setOrClear("confluence-token", form.confluenceToken);
+      await setOrClear("ai-openai-key", form.openaiKey);
+      await setOrClear("ai-anthropic-key", form.anthropicKey);
+      await setOrClear("ai-ollama-url", form.ollamaUrl);
       setSavedAt(new Date().toLocaleTimeString());
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -167,6 +187,29 @@ export function Settings({
                     onChange={(v) => setForm({ ...form, confluenceToken: v })}
                     placeholder="token"
                     type="password"
+                  />
+                </Section>
+
+                <Section title="AI Composer (BYO key)" hint="Used by the Composer LLM mode and 'Explain my diagram'. Add any one provider. OpenAI is the recommended default.">
+                  <Field
+                    label="OpenAI API key"
+                    value={form.openaiKey}
+                    onChange={(v) => setForm({ ...form, openaiKey: v })}
+                    placeholder="sk-..."
+                    type="password"
+                  />
+                  <Field
+                    label="Anthropic API key"
+                    value={form.anthropicKey}
+                    onChange={(v) => setForm({ ...form, anthropicKey: v })}
+                    placeholder="sk-ant-..."
+                    type="password"
+                  />
+                  <Field
+                    label="Ollama base URL (local)"
+                    value={form.ollamaUrl}
+                    onChange={(v) => setForm({ ...form, ollamaUrl: v })}
+                    placeholder="http://localhost:11434"
                   />
                 </Section>
 

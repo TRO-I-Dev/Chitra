@@ -23,6 +23,8 @@ import {
   publishNotion,
 } from "../exports/runExport.js";
 import { platform } from "../platform/index.js";
+import { explainDiagram } from "../composer/explainDiagram.js";
+import { importRows } from "../exports/importTable.js";
 import type { Card, CardType, Project } from "@chitra/core";
 
 export function Workspace(): JSX.Element {
@@ -50,6 +52,7 @@ export function Workspace(): JSX.Element {
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [explain, setExplain] = useState<{ busy: boolean; text: string | null; error: string | null } | null>(null);
   const addAtCenterRef = useRef<((cardId: string) => void) | null>(null);
 
   // Global shortcuts: Ctrl+N (new card), Ctrl+S (save), Ctrl+Shift+S (save as),
@@ -174,6 +177,9 @@ export function Workspace(): JSX.Element {
         case "mode-sketch":
           setWorkMode("sketch");
           break;
+        case "ai-explain-diagram":
+          void runExplainDiagram();
+          break;
         default:
           if (action.startsWith("export-") || action.startsWith("publish-")) {
             void runExportCommand(action);
@@ -206,6 +212,51 @@ export function Workspace(): JSX.Element {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       toast.error(msg);
+    }
+  }
+
+  async function runExplainDiagram(): Promise<void> {    const proj = useProjectStore.getState().project;
+    const boardId = useProjectStore.getState().currentBoardId;
+    if (!proj || !boardId) return;
+    const board = proj.boards.find((b) => b.id === boardId);
+    if (!board) return;
+    setExplain({ busy: true, text: null, error: null });
+    try {
+      const out = await explainDiagram({ board, cards: proj.cards });
+      if (out == null) {
+        setExplain({ busy: false, text: null, error: "No AI provider configured. Add an API key in Settings." });
+      } else {
+        setExplain({ busy: false, text: out, error: null });
+      }
+    } catch (e) {
+      setExplain({ busy: false, text: null, error: e instanceof Error ? e.message : String(e) });
+    }
+  }
+
+  async function runImportCards(file: File): Promise<void> {
+    try {
+      const text = await file.text();
+      const rows = importRows(text, file.name);
+      if (rows.length === 0) {
+        toast.error("No rows found in file.");
+        return;
+      }
+      for (const r of rows) {
+        const card = addCard({
+          title: r.title,
+          type: r.type,
+          body: {
+            type: "doc",
+            content: [{ type: "paragraph", content: r.bodyText ? [{ type: "text", text: r.bodyText }] : [] }],
+          },
+        });
+        if (r.tags.length > 0) {
+          useProjectStore.getState().updateCard(card.id, { tags: r.tags });
+        }
+      }
+      toast.success(`Imported ${rows.length} card${rows.length === 1 ? "" : "s"}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
     }
   }
 
@@ -321,6 +372,7 @@ export function Workspace(): JSX.Element {
           onDelete={(id) => removeCard(id)}
           onOpen={(id) => { setInspectorCardId(id); setInspectorCollapsed(false); }}
           onAddToCanvas={(id) => addAtCenterRef.current?.(id)}
+          onImportCards={(file) => void runImportCards(file)}
         />
 
         {/* Studio canvas */}
@@ -348,6 +400,28 @@ export function Workspace(): JSX.Element {
               else addNodeFromCard(card.id, { x: 0, y: 0 });
             });
           }}
+          onBulkCreate={({ cards, edges }) => {
+            // Create every card; layout left-to-right with 280px stride
+            // starting near origin so they don't overlap.
+            const created = cards.map((c) => addCardWithBody(addCard, c));
+            window.requestAnimationFrame(() => {
+              created.forEach((card, i) => {
+                addNodeFromCard(card.id, { x: i * 280, y: 0 });
+              });
+              // Wire suggested edges (after nodes exist on the active board).
+              const addEdge = useProjectStore.getState().addEdge;
+              for (const e of edges) {
+                const src = created[e.fromIndex];
+                const dst = created[e.toIndex];
+                if (!src || !dst) continue;
+                addEdge({
+                  source: src.id,
+                  target: dst.id,
+                  kind: mapRelationToKind(e.relation),
+                });
+              }
+            });
+          }}
         />
         <Templates open={templatesOpen} onClose={() => setTemplatesOpen(false)} />
         <Settings open={settingsOpen} onClose={() => setSettingsOpen(false)} />
@@ -357,6 +431,46 @@ export function Workspace(): JSX.Element {
         collapsed={inspectorCollapsed}
         onClose={() => setInspectorCardId(null)}
       />
+
+      {explain && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+          onClick={() => setExplain(null)}
+        >
+          <div
+            className="relative w-full max-w-2xl rounded-2xl border border-white/10 bg-[var(--color-surface)] p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-sm font-semibold text-[var(--color-ink)]">✨ Diagram explanation</h2>
+              <button
+                type="button"
+                onClick={() => setExplain(null)}
+                className="rounded p-1 text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]"
+                aria-label="Close"
+              >×</button>
+            </div>
+            {explain.busy && (
+              <div className="py-8 text-center text-sm text-[var(--color-ink-dim)]">Thinking…</div>
+            )}
+            {explain.error && (
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{explain.error}</div>
+            )}
+            {explain.text && (
+              <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-ink)]">{explain.text}</div>
+            )}
+            {explain.text && (
+              <div className="mt-4 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => { void navigator.clipboard.writeText(explain.text ?? ""); toast.success("Copied"); }}
+                  className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]"
+                >Copy</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Status footer */}
       <footer className="flex h-6 shrink-0 items-center justify-between border-t border-white/5 bg-[#0a0a10] px-3 text-[10px] text-[var(--color-ink-dim)]">
@@ -412,6 +526,19 @@ function addCardWithBody(
       ],
     },
   });
+}
+
+/** Map the AI's free-text relation string onto our EdgeKind enum.
+ *  Unknown relations fall back to "straight". */
+function mapRelationToKind(rel: string): import("@chitra/core").EdgeKind {
+  const r = rel.toLowerCase().trim();
+  if (r === "depends-on" || r === "depends" || r === "requires") return "depends-on";
+  if (r === "sequence" || r === "then" || r === "next") return "sequence";
+  if (r === "contains" || r === "includes" || r === "has") return "contains";
+  if (r === "conflicts-with" || r === "conflicts" || r === "vs") return "conflicts-with";
+  if (r === "informs" || r === "tells") return "informs";
+  if (r === "flows-to" || r === "flows" || r === "to") return "flows-to";
+  return "straight";
 }
 
 function timeAgo(iso: string): string {

@@ -3,17 +3,27 @@ import { AnimatePresence, motion } from "framer-motion";
 import { compose, type ClassifierSuggestion } from "@chitra/composer";
 import type { CardType } from "@chitra/core";
 import { CARD_TYPES, CARD_TYPE_STYLES } from "../cardStyles.js";
+import { aiCompose, type AiComposeResult } from "../composer/aiCompose.js";
+import { composeMarkdown, looksLikeMarkdown } from "../composer/composeMarkdown.js";
+import { hasAnyProvider } from "../platform/ai/index.js";
 
 interface Props {
   open: boolean;
   onClose: () => void;
   onCreate: (input: { title: string; type: CardType; bodyText: string }) => void;
+  /** Called when the user accepts an AI multi-card split. The caller
+   *  receives the full result (cards + suggested edges) so it can wire
+   *  edges across the resulting card IDs. */
+  onBulkCreate?: (result: AiComposeResult) => void;
 }
 
-export function Composer({ open, onClose, onCreate }: Props): JSX.Element | null {
+export function Composer({ open, onClose, onCreate, onBulkCreate }: Props): JSX.Element | null {
   const [text, setText] = useState("");
   const [type, setType] = useState<CardType | null>(null);
   const [title, setTitle] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiAvailable, setAiAvailable] = useState(false);
 
   // Recompute suggestions live.
   const draft = useMemo(() => compose(text), [text]);
@@ -24,7 +34,10 @@ export function Composer({ open, onClose, onCreate }: Props): JSX.Element | null
       setText("");
       setType(null);
       setTitle("");
+      setAiError(null);
+      return;
     }
+    void hasAnyProvider().then(setAiAvailable);
   }, [open]);
 
   // Adopt heuristic suggestions until the user explicitly picks something.
@@ -46,6 +59,35 @@ export function Composer({ open, onClose, onCreate }: Props): JSX.Element | null
     });
     onClose();
   };
+
+  const runAiSplit = async (): Promise<void> => {
+    if (!text.trim() || !onBulkCreate) return;
+    setAiBusy(true);
+    setAiError(null);
+    try {
+      const result = await aiCompose(text);
+      if (!result || result.cards.length === 0) {
+        setAiError("AI returned no cards. Add an API key in Settings or refine your text.");
+        return;
+      }
+      onBulkCreate(result);
+      onClose();
+    } catch (e) {
+      setAiError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
+  const runMarkdownSplit = (): void => {
+    if (!text.trim() || !onBulkCreate) return;
+    const result = composeMarkdown(text);
+    if (result.cards.length === 0) return;
+    onBulkCreate(result);
+    onClose();
+  };
+
+  const mdAvailable = onBulkCreate && looksLikeMarkdown(text);
 
   return (
     <AnimatePresence>
@@ -139,8 +181,32 @@ export function Composer({ open, onClose, onCreate }: Props): JSX.Element | null
             <span className="mx-1">+</span>
             <kbd className="rounded bg-white/5 px-1.5 py-0.5">Enter</kbd>
             <span className="ml-2">to add</span>
+            {aiError && (
+              <span className="ml-3 text-red-400">{aiError}</span>
+            )}
           </div>
           <div className="flex items-center gap-2">
+            {mdAvailable && (
+              <button
+                type="button"
+                onClick={runMarkdownSplit}
+                title="Split this markdown into one card per heading (no AI needed)."
+                className="rounded-lg border border-white/15 px-3 py-1.5 text-sm text-[var(--color-ink-dim)] transition hover:bg-white/5 hover:text-[var(--color-ink)]"
+              >
+                # Split by headings
+              </button>
+            )}
+            {aiAvailable && onBulkCreate && (
+              <button
+                type="button"
+                onClick={() => void runAiSplit()}
+                disabled={!text.trim() || aiBusy}
+                title="Use the configured AI provider to split this writing into multiple typed cards with suggested edges."
+                className="rounded-lg border border-[var(--color-accent-2)]/40 px-3 py-1.5 text-sm text-[var(--color-accent-2)] transition hover:bg-[var(--color-accent-2)]/10 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {aiBusy ? "Splitting…" : "✨ AI: split into cards"}
+              </button>
+            )}
             <button
               type="button"
               onClick={onClose}
