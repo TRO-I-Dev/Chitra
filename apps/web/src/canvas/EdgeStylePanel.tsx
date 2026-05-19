@@ -202,6 +202,74 @@ export function EdgeStylePanel({
           />
         </Group>
 
+        {/* Description — a richer label-with-placement that can sit above,
+            on, or below the connector line and slide along it. Empty text
+            clears the description entirely (store treats "" as null). */}
+        <Group label="Note">
+          <input
+            value={edge.description?.text ?? ""}
+            placeholder="describe…"
+            onChange={(e) =>
+              updateEdge(edgeId, {
+                description: { text: e.target.value },
+              })
+            }
+            className="w-36 rounded-md border border-white/10 bg-black/40 px-2 py-1 text-[11px] text-[var(--color-ink)] outline-none placeholder:text-[var(--color-ink-dim)]/50 focus:border-white/30"
+          />
+          {edge.description?.text ? (
+            <>
+              <ChipRow>
+                {(["above", "center", "below"] as const).map((p) => {
+                  const cur = edge.description?.placement ?? "above";
+                  return (
+                    <Chip
+                      key={p}
+                      active={cur === p}
+                      onClick={() =>
+                        updateEdge(edgeId, { description: { placement: p } })
+                      }
+                      title={`Placement: ${p}`}
+                    >
+                      <span className="text-[10px] capitalize leading-none">{p}</span>
+                    </Chip>
+                  );
+                })}
+              </ChipRow>
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={edge.description?.t ?? 0.5}
+                onChange={(e) =>
+                  updateEdge(edgeId, {
+                    description: { t: Number(e.target.value) },
+                  })
+                }
+                title="Slide note along connector"
+                className="h-1 w-16 cursor-pointer accent-[var(--color-accent-2)]"
+              />
+              <ChipRow>
+                {(["solid", "outline", "none"] as const).map((bg) => {
+                  const cur = edge.description?.background ?? "solid";
+                  return (
+                    <Chip
+                      key={bg}
+                      active={cur === bg}
+                      onClick={() =>
+                        updateEdge(edgeId, { description: { background: bg } })
+                      }
+                      title={`Background: ${bg}`}
+                    >
+                      <span className="text-[10px] capitalize leading-none">{bg[0]}</span>
+                    </Chip>
+                  );
+                })}
+              </ChipRow>
+            </>
+          ) : null}
+        </Group>
+
         {/* Reset / delete / close */}
         <div className="ml-auto flex items-center gap-1 pl-2">
           <button

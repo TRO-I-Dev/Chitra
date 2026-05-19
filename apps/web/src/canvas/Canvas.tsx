@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Background,
-  BackgroundVariant,
   Controls,
   MiniMap,
   ReactFlow,
@@ -11,6 +9,7 @@ import {
   type Connection,
   type Edge,
   type EdgeChange,
+  type EdgeTypes,
   type Node,
   type NodeChange,
   type NodeTypes,
@@ -21,18 +20,20 @@ import { toast } from "sonner";
 
 import type { BoardEdge, BoardNode, EdgeKind } from "@chitra/core";
 import { useCardMap, useCurrentBoard, useProjectStore } from "../state/projectStore.js";
-import { useTheme } from "../state/theme.js";
 import { useMode } from "../state/mode.js";
 import { CardNode, type CardNodeData } from "./CardNode.js";
-import { EDGE_KINDS, EDGE_STYLES, resolveEdgeStyle, shapeToRfType } from "./edgeStyles.js";
+import { EDGE_KINDS, EDGE_STYLES, resolveEdgeStyle } from "./edgeStyles.js";
 import { EdgeStylePanel } from "./EdgeStylePanel.js";
 import { autoLayout, type LayoutDirection } from "./autoLayout.js";
-import { StudioBackground } from "./StudioBackground.js";
+import { CanvasBackground } from "./CanvasBackground.js";
+import { BackgroundPanel } from "./BackgroundPanel.js";
+import { ChitraEdge, type ChitraEdgeData } from "./ChitraEdge.js";
 import { SketchOverlay } from "./SketchOverlay.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 import { quickExportDiagramPng } from "../exports/runExport.js";
 
 const nodeTypes: NodeTypes = { card: CardNode };
+const edgeTypes: EdgeTypes = { chitra: ChitraEdge };
 
 export function Canvas({
   onOpenCard,
@@ -59,9 +60,9 @@ function CanvasInner({
   const cardMap = useCardMap();
   const cards = useProjectStore((s) => s.project?.cards ?? []);
   const project = useProjectStore((s) => s.project);
-  const themeMode = useTheme((s) => s.mode);
   const workspaceMode = useMode((s) => s.mode);
   const updateNodes = useProjectStore((s) => s.updateNodes);
+  const updateNodeSize = useProjectStore((s) => s.updateNodeSize);
   const updateEdges = useProjectStore((s) => s.updateEdges);
   const addEdge = useProjectStore((s) => s.addEdge);
   const addNodeFromCard = useProjectStore((s) => s.addNodeFromCard);
@@ -76,6 +77,7 @@ function CanvasInner({
   const [isDragOver, setIsDragOver] = useState(false);
   const [exportBusy, setExportBusy] = useState(false);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+  const [showBackgroundPanel, setShowBackgroundPanel] = useState(false);
 
   // Drop the edge selection if the underlying edge disappears (deleted,
   // board changed, etc.) so the editor panel doesn't linger.
@@ -107,12 +109,20 @@ function CanvasInner({
     return board.nodes.flatMap<Node>((n) => {
       const card = cardMap.get(n.cardId);
       if (!card) return [];
-      return [{
+      const data: CardNodeData = { card };
+      if (n.width !== undefined) data.width = n.width;
+      if (n.height !== undefined) data.height = n.height;
+      const node: Node = {
         id: n.id,
         type: "card",
         position: n.position,
-        data: { card } satisfies CardNodeData,
-      }];
+        data,
+      };
+      // Pass measured size to RF so the resize handles align with the
+      // visible card from the very first render.
+      if (n.width !== undefined) (node as Node & { width?: number }).width = n.width;
+      if (n.height !== undefined) (node as Node & { height?: number }).height = n.height;
+      return [node];
     });
   }, [board, cardMap]);
 
@@ -124,7 +134,11 @@ function CanvasInner({
     return board.edges.map<Edge>((e) => {
       const resolved = resolveEdgeStyle(e.kind, e.style);
       const isStraight = resolved.shape === "straight";
-      const labelText = e.label ?? (isStraight ? undefined : EDGE_STYLES[e.kind].label);
+      // The centre pill label falls back to the kind's verb only when the
+      // edge has neither user label nor description (otherwise we'd
+      // double-up two labels on the same line).
+      const labelText =
+        e.label ?? (isStraight || e.description?.text ? undefined : EDGE_STYLES[e.kind].label);
       const isSelected = e.id === selectedEdgeId;
       // Pick the closest pair of opposing handles so a connector between two
       // adjacent nodes leaves the side that *faces* the other node — no more
@@ -132,26 +146,25 @@ function CanvasInner({
       const auto = autoHandlePair(nodeById.get(e.source), nodeById.get(e.target));
       const sourceHandle = e.sourceHandle ?? auto.source;
       const targetHandle = e.targetHandle ?? auto.target;
+      const data: ChitraEdgeData = {
+        shape: resolved.shape,
+        stroke: resolved.stroke,
+      };
+      if (labelText) data.label = labelText;
+      if (e.description) data.description = e.description;
+      if (e.secondaryLabel) data.secondaryLabel = e.secondaryLabel;
       return {
         id: e.id,
         source: e.source,
         target: e.target,
         sourceHandle,
         targetHandle,
-        type: shapeToRfType(resolved.shape),
+        // Single custom edge type owns all four shapes + label slots.
+        type: "chitra",
         animated: resolved.animated,
-        // Bigger hit area so 1-2px lines are easy to click. Without this
-        // users could only click the visible stroke and miss most attempts,
-        // making the customization panel feel "broken".
         interactionWidth: 28,
         selected: isSelected,
-        ...(labelText
-          ? {
-              label: labelText,
-              labelStyle: { fill: resolved.stroke, fontSize: 10, fontWeight: 600 },
-              labelBgStyle: { fill: "#0b0b10", fillOpacity: 0.85 },
-            }
-          : {}),
+        data,
         style: {
           stroke: resolved.stroke,
           strokeWidth: isSelected
@@ -192,12 +205,27 @@ function CanvasInner({
           }),
         );
       }
+      // Persist user resize from NodeResizer. `change.resizing` is true
+      // mid-drag and false on the final settle — we only commit on the
+      // final settle so undo rolls back the entire resize as one step.
+      for (const change of changes) {
+        if (
+          change.type === "dimensions" &&
+          change.dimensions &&
+          change.resizing === false
+        ) {
+          updateNodeSize(change.id, {
+            width: change.dimensions.width,
+            height: change.dimensions.height,
+          });
+        }
+      }
       // Handle deletions (RF emits "remove" change).
       for (const change of changes) {
         if (change.type === "remove") removeNode(change.id);
       }
     },
-    [rfNodes, updateNodes, removeNode],
+    [rfNodes, updateNodes, updateNodeSize, removeNode],
   );
 
   const onEdgesChange = useCallback(
@@ -376,11 +404,12 @@ function CanvasInner({
         if (target.closest(".react-flow")) onPaneDoubleClick(e);
       }}
     >
-      <StudioBackground enabled={themeMode === "studio"} />
+      <CanvasBackground background={board.background} />
       <ReactFlow
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
+        edgeTypes={edgeTypes}
         onNodesChange={onNodesChange}
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
@@ -398,7 +427,7 @@ function CanvasInner({
         snapToGrid
         snapGrid={[16, 16]}
         zoomOnDoubleClick={false}
-        defaultEdgeOptions={{ type: "smoothstep" }}
+        defaultEdgeOptions={{ type: "chitra" }}
         minZoom={0.2}
         maxZoom={2}
         fitView
@@ -407,12 +436,6 @@ function CanvasInner({
         nodesConnectable={workspaceMode === "structure"}
         elementsSelectable={workspaceMode === "structure"}
       >
-        <Background
-          variant={BackgroundVariant.Dots}
-          gap={22}
-          size={1.2}
-          color="rgba(255,255,255,0.07)"
-        />
         <MiniMap
           pannable
           zoomable
@@ -482,6 +505,37 @@ function CanvasInner({
           <LayoutBtn label="↓" title="Layout: top to bottom" onClick={() => runAutoLayout("TB")} />
           <LayoutBtn label="←" title="Layout: right to left" onClick={() => runAutoLayout("RL")} />
           <LayoutBtn label="↑" title="Layout: bottom to top" onClick={() => runAutoLayout("BT")} />
+        </div>
+
+        <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
+          <button
+            type="button"
+            onClick={() => setShowBackgroundPanel((v) => !v)}
+            title="Customize canvas background"
+            className={[
+              "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
+              showBackgroundPanel
+                ? "bg-white/10 text-[var(--color-ink)]"
+                : "text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]",
+            ].join(" ")}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="2" y="2" width="12" height="12" rx="2" />
+              <circle cx="6" cy="6" r="1.2" />
+              <path d="M14 11l-3-3-5 5" />
+            </svg>
+            <span className="leading-none">Background</span>
+          </button>
         </div>
 
         <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
@@ -572,6 +626,11 @@ function CanvasInner({
           edgeId={selectedEdgeId}
           onClose={() => setSelectedEdgeId(null)}
         />
+      )}
+
+      {/* Background customizer — floating top-centre panel. */}
+      {workspaceMode === "structure" && showBackgroundPanel && (
+        <BackgroundPanel onClose={() => setShowBackgroundPanel(false)} />
       )}
     </div>
   );

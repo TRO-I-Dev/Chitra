@@ -91,6 +91,28 @@ export const EdgeStyleOverride = z
   .strict();
 export type EdgeStyleOverride = z.infer<typeof EdgeStyleOverride>;
 
+/** Where the description sits relative to the connector midline. */
+export const EdgeLabelPlacement = z.enum(["above", "center", "below"]);
+export type EdgeLabelPlacement = z.infer<typeof EdgeLabelPlacement>;
+
+/** Rich description that sits above/below/on the connector midline.
+ *  Independent of the simple `label` field — both can coexist (label
+ *  in the centre pill, description above; useful for "depends on" +
+ *  cardinality "1..*"). */
+export const EdgeDescription = z
+  .object({
+    text: z.string().max(280),
+    placement: EdgeLabelPlacement.default("above"),
+    /** 0..1 position along the edge midline (0 = start, 1 = end). */
+    t: z.number().min(0).max(1).optional(),
+    /** Override colour; falls back to the edge stroke colour. */
+    color: z.string().min(1).max(32).optional(),
+    /** Background pill style. */
+    background: z.enum(["solid", "outline", "none"]).default("solid"),
+  })
+  .strict();
+export type EdgeDescription = z.infer<typeof EdgeDescription>;
+
 export const BoardEdge = z.object({
   id: z.string().min(1),
   source: z.string().min(1),
@@ -104,8 +126,55 @@ export const BoardEdge = z.object({
   kind: EdgeKind.default("straight"),
   label: z.string().optional(),
   style: EdgeStyleOverride.optional(),
+  /** Rich description rendered as a floating pill on the edge. */
+  description: EdgeDescription.optional(),
+  /** Optional secondary label on the opposite side of the line
+   *  (commonly used for cardinality). */
+  secondaryLabel: EdgeDescription.optional(),
 });
 export type BoardEdge = z.infer<typeof BoardEdge>;
+
+/* ------------------------------------------------------------------ *
+ *  Board background                                                   *
+ * ------------------------------------------------------------------ */
+
+/** Canvas background rendering style. */
+export const BackgroundKind = z.enum([
+  "studio",   // animated blob wash (default Chitra look)
+  "solid",    // single flat colour
+  "dots",     // dot grid
+  "grid",     // square grid lines
+  "lines",    // horizontal ruled lines
+  "iso",      // isometric grid (rotated lines)
+  "gradient", // linear gradient between two colours
+  "image",    // user-supplied image (stored in zip as data URL)
+]);
+export type BackgroundKind = z.infer<typeof BackgroundKind>;
+
+export const BoardBackground = z
+  .object({
+    kind: BackgroundKind.default("studio"),
+    /** Base canvas colour. */
+    color: z.string().min(1).max(48).optional(),
+    /** Secondary colour (grid lines, dots, gradient stop 2, etc.). */
+    accent: z.string().min(1).max(48).optional(),
+    /** Grid step in px (dots/grid/lines/iso). */
+    size: z.number().min(2).max(200).optional(),
+    /** Gradient angle in degrees, or iso-grid rotation. */
+    angle: z.number().min(0).max(360).optional(),
+    /** Named palette id (see backgroundPalettes). Sets sensible defaults
+     *  for color/accent so users can pick a vibe without fiddling. */
+    palette: z.string().min(1).max(48).optional(),
+    /** Data URL for image-kind backgrounds (stored inline; soft cap 5MB,
+     *  hard cap 25MB enforced by the editor UI). */
+    imageUrl: z.string().optional(),
+    /** Overall background opacity (0..1). */
+    opacity: z.number().min(0).max(1).optional(),
+    /** Blur in px (image/gradient). */
+    blur: z.number().min(0).max(40).optional(),
+  })
+  .strict();
+export type BoardBackground = z.infer<typeof BoardBackground>;
 
 export const Board = z.object({
   id: z.string().min(1),
@@ -115,6 +184,9 @@ export const Board = z.object({
   edges: z.array(BoardEdge).default([]),
   /** Optional Excalidraw scene data ({ elements, appState, files }). */
   sketch: z.record(z.unknown()).optional(),
+  /** Per-board canvas background customization. Undefined → fall back to
+   *  the project default, then the app default ("studio"). */
+  background: BoardBackground.optional(),
 });
 export type Board = z.infer<typeof Board>;
 

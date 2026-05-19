@@ -3,6 +3,7 @@ import { useMemo } from "react";
 import { nanoid } from "nanoid";
 import type {
   Board,
+  BoardBackground,
   BoardEdge,
   BoardNode,
   Card,
@@ -51,6 +52,13 @@ export interface ProjectState {
   // Board nodes / edges (operate on currentBoardId)
   addNodeFromCard: (cardId: string, position: { x: number; y: number }) => BoardNode | null;
   updateNodes: (updater: (nodes: BoardNode[]) => BoardNode[]) => void;
+  /** Persist a node's user-resized dimensions. Snapshots history once
+   *  per resize (call from NodeResizer's `onResizeEnd`). Pass `null` on
+   *  either field to clear the override and revert to auto-size. */
+  updateNodeSize: (
+    nodeId: string,
+    size: { width?: number | null; height?: number | null },
+  ) => void;
   removeNode: (nodeId: string) => void;
   addEdge: (input: {
     source: string;
@@ -67,6 +75,10 @@ export interface ProjectState {
     id: string,
     patch: Partial<Pick<BoardEdge, "kind" | "label">> & {
       style?: BoardEdge["style"] | null;
+      /** Partial merge with the existing description; `null` clears it. */
+      description?: Partial<NonNullable<BoardEdge["description"]>> | null;
+      /** Partial merge with the existing secondary label; `null` clears it. */
+      secondaryLabel?: Partial<NonNullable<BoardEdge["secondaryLabel"]>> | null;
     },
   ) => void;
   updateEdges: (updater: (edges: BoardEdge[]) => BoardEdge[]) => void;
@@ -74,6 +86,12 @@ export interface ProjectState {
 
   // Sketch overlay (per current board)
   setBoardSketch: (sketch: Record<string, unknown>) => void;
+
+  /** Replace the current board's background config. Pass `null` to clear
+   *  it (reverts to the app default). Partial patches are merged. */
+  updateBoardBackground: (
+    patch: Partial<BoardBackground> | null,
+  ) => void;
 
   // Templates
   applyTemplate: (template: Template) => string | null;
@@ -296,6 +314,34 @@ export const useProjectStore = create<ProjectState>((set, get) => {
     });
   },
 
+  updateNodeSize: (nodeId, size) => {
+    // Snapshot once per resize so undo rolls back the whole drag, not
+    // every pixel-level dimension change.
+    snapshot();
+    set((s) => {
+      if (!s.project || !s.currentBoardId) return s;
+      return {
+        project: patchBoard(s.project, s.currentBoardId, (b) => ({
+          ...b,
+          nodes: b.nodes.map((n) => {
+            if (n.id !== nodeId) return n;
+            const next: BoardNode = { ...n };
+            if (size.width !== undefined) {
+              if (size.width === null) delete (next as Partial<BoardNode>).width;
+              else next.width = Math.max(120, Math.round(size.width));
+            }
+            if (size.height !== undefined) {
+              if (size.height === null) delete (next as Partial<BoardNode>).height;
+              else next.height = Math.max(60, Math.round(size.height));
+            }
+            return next;
+          }),
+        })),
+        dirty: true,
+      };
+    });
+  },
+
   addEdge: ({ source, target, kind = "straight", sourceHandle, targetHandle }) => {
     const { project, currentBoardId } = get();
     if (!project || !currentBoardId || source === target) return null;
@@ -343,6 +389,38 @@ export const useProjectStore = create<ProjectState>((set, get) => {
               if (patch.style === null) delete (next as Partial<BoardEdge>).style;
               else next.style = { ...(e.style ?? {}), ...patch.style };
             }
+            if (patch.description !== undefined) {
+              if (patch.description === null) {
+                delete (next as Partial<BoardEdge>).description;
+              } else {
+                const merged = {
+                  ...(e.description ?? { text: "", placement: "above" as const, background: "solid" as const }),
+                  ...patch.description,
+                } satisfies NonNullable<BoardEdge["description"]>;
+                // Clearing description text wipes the whole pill so an
+                // empty input doesn't render an invisible artifact.
+                if (!merged.text || merged.text.trim() === "") {
+                  delete (next as Partial<BoardEdge>).description;
+                } else {
+                  next.description = merged;
+                }
+              }
+            }
+            if (patch.secondaryLabel !== undefined) {
+              if (patch.secondaryLabel === null) {
+                delete (next as Partial<BoardEdge>).secondaryLabel;
+              } else {
+                const merged = {
+                  ...(e.secondaryLabel ?? { text: "", placement: "below" as const, background: "outline" as const }),
+                  ...patch.secondaryLabel,
+                } satisfies NonNullable<BoardEdge["secondaryLabel"]>;
+                if (!merged.text || merged.text.trim() === "") {
+                  delete (next as Partial<BoardEdge>).secondaryLabel;
+                } else {
+                  next.secondaryLabel = merged;
+                }
+              }
+            }
             return next;
           }),
         })),
@@ -382,6 +460,26 @@ export const useProjectStore = create<ProjectState>((set, get) => {
         dirty: true,
       };
     }),
+
+  updateBoardBackground: (patch) => {
+    snapshot();
+    set((s) => {
+      if (!s.project || !s.currentBoardId) return s;
+      return {
+        project: patchBoard(s.project, s.currentBoardId, (b) => {
+          if (patch === null) {
+            const next = { ...b } as Partial<Board>;
+            delete next.background;
+            return next as Board;
+          }
+          const base: BoardBackground = b.background ?? { kind: "studio" };
+          const merged: BoardBackground = { ...base, ...patch };
+          return { ...b, background: merged };
+        }),
+        dirty: true,
+      };
+    });
+  },
 
   applyTemplate: (template) => {
     snapshot();
