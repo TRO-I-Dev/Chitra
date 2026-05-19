@@ -150,9 +150,10 @@ function CanvasInner({
         position: n.position,
         data,
       };
-      // Pass measured size to RF so the resize handles align with the
-      // visible card from the very first render.
-      if (n.width !== undefined) (node as Node & { width?: number }).width = n.width;
+      // Pin the wrapper width so the inner card (width:100%) renders at a
+      // sensible footprint from first paint. Height stays undefined when
+      // no override exists so the wrapper auto-measures to content.
+      (node as Node & { width?: number }).width = n.width ?? 220;
       if (n.height !== undefined) (node as Node & { height?: number }).height = n.height;
       return [node];
     });

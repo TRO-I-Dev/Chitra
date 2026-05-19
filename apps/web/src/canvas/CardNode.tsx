@@ -1,4 +1,5 @@
 import { Handle, NodeResizer, Position, type NodeProps } from "@xyflow/react";
+import { useState } from "react";
 import type { Card } from "@chitra/core";
 import {
   CARD_TYPE_STYLES,
@@ -47,10 +48,16 @@ export function CardNode({ data, selected }: NodeProps): JSX.Element {
   const statusDef = status ? STATUS_OPTIONS.find((s) => s.value === status) : null;
   const priorityDef = priority ? PRIORITY_OPTIONS.find((p) => p.value === priority) : null;
 
-  // Default visible footprint when no override is set.
-  const w = width ?? 220;
-  const h = height; // undefined → auto
-
+  // The xyflow node wrapper drives our actual rendered size — NodeResizer
+  // writes width/height onto that wrapper in real time. We make the inner
+  // card fill 100% so the resize handles visibly stretch the card.
+  // When height hasn't been set yet, the inner div is auto-height so the
+  // node wrapper measures to content; once the user resizes vertically,
+  // `height` flips on and the inner div pins to the wrapper.
+  // `liveHeight` tracks the in-progress vertical drag so the card visibly
+  // grows before the dimension change is persisted on settle.
+  const [liveHeight, setLiveHeight] = useState<number | null>(null);
+  const effectiveHeight = liveHeight ?? height ?? null;
   return (
     <>
       <NodeResizer
@@ -59,6 +66,8 @@ export function CardNode({ data, selected }: NodeProps): JSX.Element {
         maxWidth={MAX_WIDTH}
         minHeight={MIN_HEIGHT}
         maxHeight={MAX_HEIGHT}
+        onResize={(_, params) => setLiveHeight(params.height)}
+        onResizeEnd={() => setLiveHeight(null)}
         lineStyle={{ borderColor: resolved.accent, borderWidth: 1 }}
         handleStyle={{
           width: 8,
@@ -79,8 +88,11 @@ export function CardNode({ data, selected }: NodeProps): JSX.Element {
             : "border bg-gradient-to-br shadow-lg shadow-black/40 " + tone,
         ].join(" ")}
         style={{
-          width: w,
-          ...(h ? { height: h } : {}),
+          width: "100%",
+          height: effectiveHeight != null ? effectiveHeight : "auto",
+          minWidth: MIN_WIDTH,
+          minHeight: MIN_HEIGHT,
+          boxSizing: "border-box",
           // Default rounded-2xl (16px) when no override.
           borderRadius: resolved.surface?.borderRadius ?? 16,
           // Spread overrides last so they win over defaults but before the
