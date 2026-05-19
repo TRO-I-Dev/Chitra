@@ -32,6 +32,8 @@ import { BackgroundPanel } from "./BackgroundPanel.js";
 import { ChitraEdge, type ChitraEdgeData } from "./ChitraEdge.js";
 import { SketchOverlay } from "./SketchOverlay.js";
 import { AlignToolbar, applyAlignment, nudgeNodes, type AlignAction } from "./AlignToolbar.js";
+import { computeSnap, type Guide } from "./snapEngine.js";
+import { SnapGuideOverlay } from "./SnapGuideOverlay.js";
 import { ThemeStudio } from "../views/ThemeStudio.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 import { quickExportDiagramPng } from "../exports/runExport.js";
@@ -87,6 +89,8 @@ function CanvasInner({
   // which nodes to operate on. Updated via React Flow's
   // `onSelectionChange` so it stays in sync with marquee + shift-click.
   const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  // Alignment guides displayed during a drag. Cleared on drag stop.
+  const [snapGuides, setSnapGuides] = useState<Guide[]>([]);
 
   // Drop the edge selection if the underlying edge disappears (deleted,
   // board changed, etc.) so the editor panel doesn't linger.
@@ -205,7 +209,25 @@ function CanvasInner({
         (c) => c.type === "position" && c.position,
       );
       if (positionChanges.length > 0) {
-        const next = applyNodeChanges(positionChanges, rfNodes);
+        // Apply snap-to-node-edges to each in-flight position change so
+        // the drag visibly clicks into alignment. Snapping happens on
+        // domain coords before we hand the change to applyNodeChanges.
+        const snappedChanges = positionChanges.map((c) => {
+          if (c.type !== "position" || !c.position) return c;
+          const me = rfNodes.find((n) => n.id === c.id);
+          if (!me) return c;
+          const result = computeSnap({
+            dragged: {
+              id: c.id,
+              position: c.position,
+              width: me.width ?? undefined,
+              height: me.height ?? undefined,
+            },
+            others: (board?.nodes ?? []),
+          });
+          return { ...c, position: result.position };
+        });
+        const next = applyNodeChanges(snappedChanges, rfNodes);
         updateNodes((domain) =>
           domain.map((d) => {
             const updated = next.find((n) => n.id === d.id);
@@ -234,7 +256,7 @@ function CanvasInner({
         if (change.type === "remove") removeNode(change.id);
       }
     },
-    [rfNodes, updateNodes, updateNodeSize, removeNode],
+    [rfNodes, board, updateNodes, updateNodeSize, removeNode],
   );
 
   const onEdgesChange = useCallback(
@@ -535,6 +557,22 @@ function CanvasInner({
         onDrop={onDrop}
         onInit={setRfInstance}
         onNodeDragStart={() => pushHistory()}
+        onNodeDrag={(_e, node) => {
+          if (!board) return;
+          // Compute guides only — the actual snap-to-edge mutation lives
+          // in onNodesChange so it composes with React Flow's own drag.
+          const result = computeSnap({
+            dragged: {
+              id: node.id,
+              position: node.position,
+              width: node.width ?? undefined,
+              height: node.height ?? undefined,
+            },
+            others: board.nodes,
+          });
+          setSnapGuides(result.guides);
+        }}
+        onNodeDragStop={() => setSnapGuides([])}
         onEdgeClick={(_e, edge) => setSelectedEdgeId(edge.id)}
         onPaneClick={() => setSelectedEdgeId(null)}
         onSelectionChange={onSelectionChange}
@@ -812,6 +850,10 @@ function CanvasInner({
       {workspaceMode === "structure" && (
         <AlignToolbar count={selectedNodeIds.length} onAction={runAlign} />
       )}
+
+      {/* Snap-to-node alignment guides during drag. Rendered inside the
+          provider so it can subscribe to viewport changes cheaply. */}
+      {workspaceMode === "structure" && <SnapGuideOverlay guides={snapGuides} />}
     </div>
   );
 }
