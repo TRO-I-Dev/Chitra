@@ -29,6 +29,7 @@ import { CanvasBackground } from "./CanvasBackground.js";
 import { BackgroundPanel } from "./BackgroundPanel.js";
 import { ChitraEdge, type ChitraEdgeData } from "./ChitraEdge.js";
 import { SketchOverlay } from "./SketchOverlay.js";
+import { ThemeStudio } from "../views/ThemeStudio.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 import { quickExportDiagramPng } from "../exports/runExport.js";
 
@@ -78,6 +79,7 @@ function CanvasInner({
   const [exportBusy, setExportBusy] = useState(false);
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showBackgroundPanel, setShowBackgroundPanel] = useState(false);
+  const [showThemeStudio, setShowThemeStudio] = useState(false);
 
   // Drop the edge selection if the underlying edge disappears (deleted,
   // board changed, etc.) so the editor panel doesn't linger.
@@ -536,6 +538,34 @@ function CanvasInner({
             </svg>
             <span className="leading-none">Background</span>
           </button>
+          <button
+            type="button"
+            onClick={() => setShowThemeStudio((v) => !v)}
+            title="Theme Studio — palette, font, defaults"
+            className={[
+              "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
+              showThemeStudio
+                ? "bg-white/10 text-[var(--color-ink)]"
+                : "text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]",
+            ].join(" ")}
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 16 16"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.6"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden="true"
+            >
+              <circle cx="8" cy="8" r="5.5" />
+              <path d="M8 2.5v11" />
+              <path d="M2.5 8h11" />
+            </svg>
+            <span className="leading-none">Theme</span>
+          </button>
         </div>
 
         <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
@@ -631,6 +661,11 @@ function CanvasInner({
       {/* Background customizer — floating top-centre panel. */}
       {workspaceMode === "structure" && showBackgroundPanel && (
         <BackgroundPanel onClose={() => setShowBackgroundPanel(false)} />
+      )}
+
+      {/* Theme Studio — palette + font + custom palette builder. */}
+      {workspaceMode === "structure" && showThemeStudio && (
+        <ThemeStudio onClose={() => setShowThemeStudio(false)} />
       )}
     </div>
   );

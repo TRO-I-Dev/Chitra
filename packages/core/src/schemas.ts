@@ -226,6 +226,80 @@ export const Board = z.object({
 export type Board = z.infer<typeof Board>;
 
 /* ------------------------------------------------------------------ *
+ *  Project theme — palette + font + global defaults                    *
+ * ------------------------------------------------------------------ */
+
+/** Named colour tokens applied as CSS custom properties when a palette
+ *  is active. All fields optional so palettes can override just the
+ *  bits they care about and fall through to the app defaults. */
+export const PaletteTokens = z
+  .object({
+    canvasBg: z.string().min(1).max(48).optional(),
+    canvasInk: z.string().min(1).max(48).optional(),
+    canvasInkDim: z.string().min(1).max(48).optional(),
+    accent: z.string().min(1).max(48).optional(),
+    accent2: z.string().min(1).max(48).optional(),
+    cardBg: z.string().min(1).max(48).optional(),
+    cardStroke: z.string().min(1).max(48).optional(),
+    cardText: z.string().min(1).max(48).optional(),
+    edgeDefault: z.string().min(1).max(48).optional(),
+    edgeEmphasis: z.string().min(1).max(48).optional(),
+    selection: z.string().min(1).max(48).optional(),
+    success: z.string().min(1).max(48).optional(),
+    warn: z.string().min(1).max(48).optional(),
+    danger: z.string().min(1).max(48).optional(),
+  })
+  .strict();
+export type PaletteTokens = z.infer<typeof PaletteTokens>;
+
+/** User-defined palette saved inside the .chitra project. Built-in
+ *  palettes live in code and are referenced by id without showing up
+ *  here. */
+export const Palette = z
+  .object({
+    id: z.string().min(1).max(48),
+    label: z.string().min(1).max(64),
+    tokens: PaletteTokens,
+  })
+  .strict();
+export type Palette = z.infer<typeof Palette>;
+
+export const FontSource = z.enum(["system", "bundled", "google"]);
+export type FontSource = z.infer<typeof FontSource>;
+
+/** Project-wide font family. `family` is the CSS font-family string used
+ *  as-is on the document root; `source: "google"` triggers a lazy
+ *  `<link>` injection. */
+export const FontConfig = z
+  .object({
+    family: z.string().min(1).max(80),
+    source: FontSource.default("system"),
+    /** Google Fonts weight axis values to request (default 400/600). */
+    weights: z.array(z.number().int().min(100).max(900)).optional(),
+  })
+  .strict();
+export type FontConfig = z.infer<typeof FontConfig>;
+
+export const ProjectTheme = z
+  .object({
+    /** Built-in or user-defined palette id (looked up in code first,
+     *  then `project.palettes`). */
+    paletteId: z.string().min(1).max(48).optional(),
+    /** Font applied to the whole app while the project is open. */
+    font: FontConfig.optional(),
+    /** Defaults for newly-created cards. Cards still keep per-card
+     *  overrides on top. */
+    defaultCardStyle: CardStyle.optional(),
+    /** Defaults for newly-created edges. */
+    defaultEdgeStyle: EdgeStyleOverride.optional(),
+    /** Default background applied to boards that don't define their
+     *  own. */
+    defaultBackground: BoardBackground.optional(),
+  })
+  .strict();
+export type ProjectTheme = z.infer<typeof ProjectTheme>;
+
+/* ------------------------------------------------------------------ *
  *  Project                                                            *
  * ------------------------------------------------------------------ */
 
@@ -237,6 +311,11 @@ export const Project = z.object({
   updatedAt: z.string(),
   cards: z.array(Card).default([]),
   boards: z.array(Board).default([]),
+  /** Project-wide theme (palette + font + defaults). Undefined → use
+   *  the app default look. */
+  theme: ProjectTheme.optional(),
+  /** User-defined palettes saved with the project. */
+  palettes: z.array(Palette).default([]),
 });
 export type Project = z.infer<typeof Project>;
 

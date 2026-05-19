@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Toaster, toast } from "sonner";
 import { useProjectStore } from "./state/projectStore.js";
+import { applyProjectTheme } from "./state/paletteEngine.js";
 import { Welcome } from "./views/Welcome.js";
 import { Workspace } from "./views/Workspace.js";
 import { Onboarding } from "./views/Onboarding.js";
@@ -35,6 +36,13 @@ export function App(): JSX.Element {
     window.addEventListener("beforeunload", handler);
     return () => window.removeEventListener("beforeunload", handler);
   }, [dirty]);
+
+  // Apply project theme (palette tokens + font) whenever the project's
+  // theme config changes. Clears overrides when the project closes so a
+  // fresh project doesn't inherit the previous palette.
+  useEffect(() => {
+    applyProjectTheme(project);
+  }, [project?.theme, project?.palettes, project?.id]);
 
   // App-level commands that work regardless of whether a project is open.
   useEffect(() => {

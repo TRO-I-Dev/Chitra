@@ -9,6 +9,7 @@ import type {
   Card,
   CardType,
   EdgeKind,
+  Palette,
   Project,
   RichDoc,
 } from "@chitra/core";
@@ -93,6 +94,17 @@ export interface ProjectState {
   updateBoardBackground: (
     patch: Partial<BoardBackground> | null,
   ) => void;
+
+  /** Patch the project-wide theme (palette, font, defaults). Pass `null`
+   *  to clear the whole theme; partial objects are merged. */
+  updateProjectTheme: (
+    patch: Partial<NonNullable<Project["theme"]>> | null,
+  ) => void;
+
+  /** Create or replace a user-defined palette by id (lives in
+   *  `project.palettes`). */
+  upsertPalette: (palette: Palette) => void;
+  removePalette: (id: string) => void;
 
   // Templates
   applyTemplate: (template: Template) => string | null;
@@ -477,6 +489,57 @@ export const useProjectStore = create<ProjectState>((set, get) => {
           const merged: BoardBackground = { ...base, ...patch };
           return { ...b, background: merged };
         }),
+        dirty: true,
+      };
+    });
+  },
+
+  updateProjectTheme: (patch) => {
+    snapshot();
+    set((s) => {
+      if (!s.project) return s;
+      if (patch === null) {
+        const next = { ...s.project } as Partial<Project>;
+        delete next.theme;
+        return { project: next as Project, dirty: true };
+      }
+      const base = s.project.theme ?? {};
+      const merged: NonNullable<Project["theme"]> = { ...base, ...patch };
+      // Drop keys that the caller explicitly cleared to undefined so the
+      // shape stays minimal and `JSON.stringify` diffs remain stable.
+      for (const k of Object.keys(merged) as Array<keyof typeof merged>) {
+        if (merged[k] === undefined) delete merged[k];
+      }
+      return {
+        project: { ...s.project, theme: merged, updatedAt: nowIso() },
+        dirty: true,
+      };
+    });
+  },
+
+  upsertPalette: (palette) => {
+    snapshot();
+    set((s) => {
+      if (!s.project) return s;
+      const existing = s.project.palettes ?? [];
+      const idx = existing.findIndex((p) => p.id === palette.id);
+      const next = idx >= 0
+        ? existing.map((p, i) => (i === idx ? palette : p))
+        : [...existing, palette];
+      return {
+        project: { ...s.project, palettes: next, updatedAt: nowIso() },
+        dirty: true,
+      };
+    });
+  },
+
+  removePalette: (id) => {
+    snapshot();
+    set((s) => {
+      if (!s.project) return s;
+      const next = (s.project.palettes ?? []).filter((p) => p.id !== id);
+      return {
+        project: { ...s.project, palettes: next, updatedAt: nowIso() },
         dirty: true,
       };
     });
