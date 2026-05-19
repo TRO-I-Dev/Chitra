@@ -4,6 +4,7 @@ import {
   MiniMap,
   ReactFlow,
   ReactFlowProvider,
+  SelectionMode,
   applyEdgeChanges,
   applyNodeChanges,
   type Connection,
@@ -13,6 +14,7 @@ import {
   type Node,
   type NodeChange,
   type NodeTypes,
+  type OnSelectionChangeParams,
   type ReactFlowInstance,
 } from "@xyflow/react";
 import "@xyflow/react/dist/style.css";
@@ -29,6 +31,7 @@ import { CanvasBackground } from "./CanvasBackground.js";
 import { BackgroundPanel } from "./BackgroundPanel.js";
 import { ChitraEdge, type ChitraEdgeData } from "./ChitraEdge.js";
 import { SketchOverlay } from "./SketchOverlay.js";
+import { AlignToolbar, applyAlignment, nudgeNodes, type AlignAction } from "./AlignToolbar.js";
 import { ThemeStudio } from "../views/ThemeStudio.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 import { quickExportDiagramPng } from "../exports/runExport.js";
@@ -80,6 +83,10 @@ function CanvasInner({
   const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
   const [showBackgroundPanel, setShowBackgroundPanel] = useState(false);
   const [showThemeStudio, setShowThemeStudio] = useState(false);
+  // Track multi-selection so the AlignToolbar and nudge hotkeys know
+  // which nodes to operate on. Updated via React Flow's
+  // `onSelectionChange` so it stays in sync with marquee + shift-click.
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
 
   // Drop the edge selection if the underlying edge disappears (deleted,
   // board changed, etc.) so the editor panel doesn't linger.
@@ -389,6 +396,115 @@ function CanvasInner({
     [board, rfInstance, updateNodes],
   );
 
+  /* -------- Multi-selection: alignment, distribute, nudge -------- */
+
+  const onSelectionChange = useCallback(
+    (params: OnSelectionChangeParams) => {
+      const ids = params.nodes.map((n) => n.id);
+      // Avoid resetting state on identical selections (prevents wasteful
+      // toolbar re-renders during marquee drags).
+      setSelectedNodeIds((prev) =>
+        prev.length === ids.length && prev.every((id, i) => id === ids[i])
+          ? prev
+          : ids,
+      );
+    },
+    [],
+  );
+
+  const runAlign = useCallback(
+    (action: AlignAction) => {
+      if (selectedNodeIds.length < 2) return;
+      const idSet = new Set(selectedNodeIds);
+      pushHistory();
+      updateNodes((domain) => applyAlignment(domain, idSet, action));
+    },
+    [selectedNodeIds, pushHistory, updateNodes],
+  );
+
+  // Arrow-key nudge: 1 px (10 px with shift). Ignored while typing in an
+  // input/textarea/contenteditable so users editing card titles can use
+  // the arrow keys normally.
+  useEffect(() => {
+    if (selectedNodeIds.length === 0) return;
+    const handler = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      )
+        return;
+      const step = e.shiftKey ? 10 : 1;
+      let dx = 0;
+      let dy = 0;
+      switch (e.key) {
+        case "ArrowLeft": dx = -step; break;
+        case "ArrowRight": dx = step; break;
+        case "ArrowUp": dy = -step; break;
+        case "ArrowDown": dy = step; break;
+        default: return;
+      }
+      e.preventDefault();
+      const idSet = new Set(selectedNodeIds);
+      pushHistory();
+      updateNodes((domain) => nudgeNodes(domain, idSet, dx, dy));
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [selectedNodeIds, pushHistory, updateNodes]);
+
+  /* -------- Zoom presets / frame selection -------- */
+
+  const zoomTo = useCallback(
+    (level: number) => {
+      rfInstance?.zoomTo(level, { duration: 200 });
+    },
+    [rfInstance],
+  );
+
+  const fitAll = useCallback(() => {
+    rfInstance?.fitView({ duration: 300, padding: 0.2 });
+  }, [rfInstance]);
+
+  const frameSelection = useCallback(() => {
+    if (!rfInstance) return;
+    if (selectedNodeIds.length === 0) {
+      fitAll();
+      return;
+    }
+    rfInstance.fitView({
+      duration: 300,
+      padding: 0.25,
+      nodes: selectedNodeIds.map((id) => ({ id })),
+    });
+  }, [rfInstance, selectedNodeIds, fitAll]);
+
+  // Canvas-wide hotkeys: F (frame selection), Shift+1 / Shift+0 (fit all).
+  // Ignored while typing in inputs / contenteditable.
+  useEffect(() => {
+    const handler = (e: KeyboardEvent): void => {
+      const t = e.target as HTMLElement | null;
+      if (
+        t &&
+        (t.tagName === "INPUT" ||
+          t.tagName === "TEXTAREA" ||
+          t.isContentEditable)
+      )
+        return;
+      if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        frameSelection();
+      } else if (e.shiftKey && (e.key === "1" || e.key === "0")) {
+        e.preventDefault();
+        fitAll();
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [frameSelection, fitAll]);
+
   if (!board) return <div />;
 
   return (
@@ -421,6 +537,7 @@ function CanvasInner({
         onNodeDragStart={() => pushHistory()}
         onEdgeClick={(_e, edge) => setSelectedEdgeId(edge.id)}
         onPaneClick={() => setSelectedEdgeId(null)}
+        onSelectionChange={onSelectionChange}
         onNodeDoubleClick={(_e, node) => {
           const cardId = (node.data as CardNodeData | undefined)?.card.id;
           if (cardId && onOpenCard) onOpenCard(cardId);
@@ -434,6 +551,14 @@ function CanvasInner({
         maxZoom={2}
         fitView
         fitViewOptions={{ padding: 0.25 }}
+        // Marquee selection: left-drag on the pane creates a selection
+        // box; right- or middle-drag pans. Partial mode means a node
+        // overlapping the marquee gets included even if not fully
+        // enclosed (matches Lucid / Figma muscle memory).
+        selectionOnDrag
+        selectionMode={SelectionMode.Partial}
+        panOnDrag={[1, 2]}
+        multiSelectionKeyCode={["Shift", "Meta"]}
         nodesDraggable={workspaceMode === "structure"}
         nodesConnectable={workspaceMode === "structure"}
         elementsSelectable={workspaceMode === "structure"}
@@ -507,6 +632,20 @@ function CanvasInner({
           <LayoutBtn label="↓" title="Layout: top to bottom" onClick={() => runAutoLayout("TB")} />
           <LayoutBtn label="←" title="Layout: right to left" onClick={() => runAutoLayout("RL")} />
           <LayoutBtn label="↑" title="Layout: bottom to top" onClick={() => runAutoLayout("BT")} />
+        </div>
+
+        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
+          <LayoutBtn label="50%" title="Zoom to 50%" onClick={() => zoomTo(0.5)} />
+          <LayoutBtn label="100%" title="Zoom to 100%" onClick={() => zoomTo(1)} />
+          <LayoutBtn label="150%" title="Zoom to 150%" onClick={() => zoomTo(1.5)} />
+          <LayoutBtn label="200%" title="Zoom to 200%" onClick={() => zoomTo(2)} />
+          <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden="true" />
+          <LayoutBtn label="Fit" title="Fit all to view (Shift+1)" onClick={fitAll} />
+          <LayoutBtn
+            label="Frame"
+            title="Frame selection (F)"
+            onClick={frameSelection}
+          />
         </div>
 
         <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
@@ -666,6 +805,12 @@ function CanvasInner({
       {/* Theme Studio — palette + font + custom palette builder. */}
       {workspaceMode === "structure" && showThemeStudio && (
         <ThemeStudio onClose={() => setShowThemeStudio(false)} />
+      )}
+
+      {/* Alignment / distribute toolbar — appears when 2+ nodes are
+          selected via shift-click or marquee drag. */}
+      {workspaceMode === "structure" && (
+        <AlignToolbar count={selectedNodeIds.length} onAction={runAlign} />
       )}
     </div>
   );
