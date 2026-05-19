@@ -105,7 +105,7 @@ export type EdgeKind = z.infer<typeof EdgeKind>;
 
 /** Geometric path used to render the edge. Independent of the semantic
  *  `EdgeKind`: a "depends-on" edge can still be drawn as a straight line. */
-export const EdgeShape = z.enum(["straight", "smoothstep", "step", "bezier"]);
+export const EdgeShape = z.enum(["straight", "smoothstep", "step", "bezier", "avoid"]);
 export type EdgeShape = z.infer<typeof EdgeShape>;
 
 /** Stroke pattern. `solid` is the default; `dashed`/`dotted` override the

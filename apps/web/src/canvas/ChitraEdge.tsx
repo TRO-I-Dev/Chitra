@@ -6,9 +6,12 @@ import {
   getSmoothStepPath,
   getStraightPath,
   Position,
+  useNodes,
   type EdgeProps,
+  type Node,
 } from "@xyflow/react";
 import type { EdgeDescription } from "@chitra/core";
+import { routeAvoid } from "./routeAvoid.js";
 
 /**
  * Data attached to every Chitra edge after the domain → React Flow
@@ -16,7 +19,7 @@ import type { EdgeDescription } from "@chitra/core";
  * edge renderer pull description/label info without re-resolving styles.
  */
 export interface ChitraEdgeData extends Record<string, unknown> {
-  shape: "straight" | "smoothstep" | "step" | "bezier";
+  shape: "straight" | "smoothstep" | "step" | "bezier" | "avoid";
   stroke: string;
   /** Centre-pill text (from `BoardEdge.label`). */
   label?: string;
@@ -45,6 +48,8 @@ export function ChitraEdge({
   targetY,
   sourcePosition,
   targetPosition,
+  source,
+  target,
   data,
   style,
   markerEnd,
@@ -54,10 +59,35 @@ export function ChitraEdge({
   const d = (data ?? {}) as ChitraEdgeData;
   const shape = d.shape ?? "smoothstep";
 
+  // For avoid routing we need every other node's bbox. `useNodes()`
+  // returns the live array; React Flow re-renders the edge whenever any
+  // node moves so the route stays current.
+  const allNodes = useNodes<Node>();
+
   const [path, labelX, labelY] = useMemo(() => {
     const sp = sourcePosition ?? Position.Bottom;
     const tp = targetPosition ?? Position.Top;
     switch (shape) {
+      case "avoid": {
+        const obstacles = allNodes
+          .filter((n) => n.id !== source && n.id !== target)
+          .map((n) => ({
+            x: n.position.x,
+            y: n.position.y,
+            w: n.width ?? 220,
+            h: n.height ?? 120,
+          }));
+        const r = routeAvoid({
+          source: { x: sourceX, y: sourceY },
+          target: { x: targetX, y: targetY },
+          obstacles,
+        });
+        const mid = r.points[Math.floor(r.points.length / 2)] ?? {
+          x: (sourceX + targetX) / 2,
+          y: (sourceY + targetY) / 2,
+        };
+        return [r.path, mid.x, mid.y] as [string, number, number];
+      }
       case "straight":
         return getStraightPath({ sourceX, sourceY, targetX, targetY });
       case "step":
@@ -90,7 +120,7 @@ export function ChitraEdge({
           targetPosition: tp,
         });
     }
-  }, [shape, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition]);
+  }, [shape, sourceX, sourceY, targetX, targetY, sourcePosition, targetPosition, allNodes, source, target]);
 
   return (
     <>

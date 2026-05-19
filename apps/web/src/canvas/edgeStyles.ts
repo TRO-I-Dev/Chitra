@@ -36,6 +36,7 @@ export const EDGE_SHAPES: { value: EdgeShape; label: string; glyph: string }[] =
   { value: "smoothstep", label: "Smooth",    glyph: "⌐" },
   { value: "step",       label: "Step",      glyph: "⌎" },
   { value: "bezier",     label: "Curve",     glyph: "∿" },
+  { value: "avoid",      label: "Avoid",     glyph: "↪" },
 ];
 
 export const EDGE_DASHES: { value: EdgeDash; label: string }[] = [
