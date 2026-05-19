@@ -47,6 +47,7 @@ export function Workspace(): JSX.Element {
   const [templatesOpen, setTemplatesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [inspectorCardId, setInspectorCardId] = useState<string | null>(null);
+  const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const addAtCenterRef = useRef<((cardId: string) => void) | null>(null);
@@ -88,6 +89,18 @@ export function Workspace(): JSX.Element {
       } else if (cmd && k === "2") {
         e.preventDefault();
         setWorkMode("sketch");
+      } else if (k === "[" && !cmd) {
+        // Collapse / hide the docked inspector.
+        if (inspectorCardId && !inspectorCollapsed) {
+          e.preventDefault();
+          setInspectorCollapsed(true);
+        }
+      } else if (k === "]" && !cmd) {
+        // Reveal the docked inspector (if a card is open).
+        if (inspectorCardId && inspectorCollapsed) {
+          e.preventDefault();
+          setInspectorCollapsed(false);
+        }
       } else if (k === "escape") {
         if (inspectorCardId) setInspectorCardId(null);
       }
@@ -301,9 +314,12 @@ export function Workspace(): JSX.Element {
       <div className="flex flex-1 overflow-hidden">
         <Inbox
           cards={project.cards}
+          edges={project.boards.flatMap((b) =>
+            b.edges.map((e) => ({ kind: e.kind, source: e.source, target: e.target })),
+          )}
           onAddClick={() => setComposerOpen(true)}
           onDelete={(id) => removeCard(id)}
-          onOpen={(id) => setInspectorCardId(id)}
+          onOpen={(id) => { setInspectorCardId(id); setInspectorCollapsed(false); }}
           onAddToCanvas={(id) => addAtCenterRef.current?.(id)}
         />
 
@@ -312,7 +328,7 @@ export function Workspace(): JSX.Element {
           <BoardTabs />
           <div className="relative flex-1 overflow-hidden">
             <Canvas
-              onOpenCard={(id) => setInspectorCardId(id)}
+              onOpenCard={(id) => { setInspectorCardId(id); setInspectorCollapsed(false); }}
               registerAddAtCenter={(fn) => {
                 addAtCenterRef.current = fn;
               }}
@@ -338,6 +354,7 @@ export function Workspace(): JSX.Element {
       </Suspense>
       <CardInspector
         card={inspectorCardId ? project.cards.find((c) => c.id === inspectorCardId) ?? null : null}
+        collapsed={inspectorCollapsed}
         onClose={() => setInspectorCardId(null)}
       />
 

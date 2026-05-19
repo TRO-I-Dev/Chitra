@@ -41,9 +41,12 @@ function textToBody(text: string): RichDoc {
 export function CardInspector({
   card,
   onClose,
+  collapsed = false,
 }: {
   card: Card | null;
   onClose: () => void;
+  /** When true, the panel hides itself even if a card is open. */
+  collapsed?: boolean;
 }): JSX.Element {
   const updateCard = useProjectStore((s) => s.updateCard);
   const updateCardLive = useProjectStore((s) => s.updateCardLive);
@@ -149,7 +152,7 @@ export function CardInspector({
     };
   }, [card?.id, updateCardLive]);
 
-  if (!card) {
+  if (!card || collapsed) {
     return (
       <AnimatePresence>{null}</AnimatePresence>
     );
@@ -159,35 +162,38 @@ export function CardInspector({
     <AnimatePresence>
       <motion.div
         key="inspector"
-        role="dialog"
-        aria-modal="true"
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        transition={{ duration: 0.15 }}
-        className="fixed inset-0 z-40 flex items-start justify-center bg-black/60 backdrop-blur-sm"
-        onClick={onClose}
+        role="complementary"
+        aria-label="Card inspector"
+        initial={{ x: 24, opacity: 0 }}
+        animate={{ x: 0, opacity: 1 }}
+        exit={{ x: 24, opacity: 0 }}
+        transition={{ type: "spring", stiffness: 320, damping: 30 }}
+        className="fixed right-2 top-14 bottom-8 z-30 flex w-[min(420px,92vw)] flex-col overflow-hidden rounded-2xl border border-white/10 bg-[#13131a] shadow-2xl shadow-black/60"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save();
+        }}
       >
-        <motion.div
-          initial={{ y: 24, scale: 0.96, opacity: 0 }}
-          animate={{ y: 0, scale: 1, opacity: 1 }}
-          exit={{ y: 12, scale: 0.98, opacity: 0 }}
-          transition={{ type: "spring", stiffness: 320, damping: 28 }}
-          className="mt-20 w-[min(720px,92vw)] overflow-hidden rounded-2xl border border-white/10 bg-[#13131a] shadow-2xl shadow-black/60"
-          onClick={(e) => e.stopPropagation()}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") onClose();
-            if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save();
-          }}
-        >
-          <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
-            <div className="text-xs uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
-              Edit card
-            </div>
-            <kbd className="rounded bg-white/5 px-2 py-0.5 text-[10px] text-[var(--color-ink-dim)]">
-              Esc
-            </kbd>
+        <div className="flex items-center justify-between border-b border-white/5 px-5 py-3">
+          <div className="text-xs uppercase tracking-[0.25em] text-[var(--color-ink-dim)]">
+            Edit card
           </div>
+          <div className="flex items-center gap-1">
+            <kbd className="rounded bg-white/5 px-2 py-0.5 text-[10px] text-[var(--color-ink-dim)]">
+              ]
+            </kbd>
+            <button
+              type="button"
+              onClick={onClose}
+              title="Close inspector (Esc)"
+              className="rounded-md px-1.5 py-0.5 text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]"
+              aria-label="Close inspector"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
 
           <input
             value={title}
@@ -440,7 +446,7 @@ export function CardInspector({
               </button>
             </div>
           </div>
-        </motion.div>
+        </div>
       </motion.div>
     </AnimatePresence>
   );

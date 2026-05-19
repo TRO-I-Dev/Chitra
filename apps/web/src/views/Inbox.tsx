@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { Card } from "@chitra/core";
+import type { Card, EdgeKind } from "@chitra/core";
 import { AnimatePresence } from "framer-motion";
 import {
   STATUS_OPTIONS,
@@ -10,27 +10,69 @@ import {
 } from "../cardStyles.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, setDraggedCardId } from "../dragState.js";
 
+interface RelationshipEdge {
+  kind: EdgeKind;
+  source: string;
+  target: string;
+}
+
 interface Props {
   cards: Card[];
   onAddClick: () => void;
   onDelete: (id: string) => void;
   onOpen: (id: string) => void;
   onAddToCanvas?: (id: string) => void;
+  /** Flat list of every edge across every board, used to drive the
+   *  relationship filter chip row. */
+  edges?: RelationshipEdge[];
 }
 
-export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Props): JSX.Element {
+const KIND_LABEL: Record<EdgeKind, string> = {
+  "straight": "Linked",
+  "depends-on": "Depends on",
+  "sequence": "Sequence",
+  "contains": "Contains",
+  "conflicts-with": "Conflicts",
+  "informs": "Informs",
+  "flows-to": "Flows to",
+};
+
+export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas, edges = [] }: Props): JSX.Element {
   const [query, setQuery] = useState("");
+  const [relFilter, setRelFilter] = useState<EdgeKind | null>(null);
+
+  // Which kinds actually exist on the board? (Empty filter row when none.)
+  const presentKinds = useMemo(() => {
+    const seen = new Set<EdgeKind>();
+    for (const e of edges) seen.add(e.kind);
+    return Array.from(seen);
+  }, [edges]);
+
+  // Cards that participate (either as source or target) in any edge of
+  // the active relationship filter.
+  const relCardIds = useMemo(() => {
+    if (!relFilter) return null;
+    const ids = new Set<string>();
+    for (const e of edges) {
+      if (e.kind === relFilter) {
+        ids.add(e.source);
+        ids.add(e.target);
+      }
+    }
+    return ids;
+  }, [edges, relFilter]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return cards;
     return cards.filter((c) => {
+      if (relCardIds && !relCardIds.has(c.id)) return false;
+      if (!q) return true;
       if (c.title.toLowerCase().includes(q)) return true;
       if (c.type.toLowerCase().includes(q)) return true;
       if (c.tags.some((t) => t.toLowerCase().includes(q))) return true;
       return flattenBody(c).toLowerCase().includes(q);
     });
-  }, [cards, query]);
+  }, [cards, query, relCardIds]);
 
   return (
     <aside className="flex h-full w-80 shrink-0 flex-col border-r border-white/5 bg-[#0d0d14]">
@@ -65,6 +107,23 @@ export function Inbox({ cards, onAddClick, onDelete, onOpen, onAddToCanvas }: Pr
             placeholder="Search title, body, type, tag…"
             className="w-full rounded-md border border-white/10 bg-black/30 px-2.5 py-1.5 text-xs outline-none placeholder:text-[var(--color-ink-dim)]/60 focus:border-[var(--color-accent)]/60"
           />
+          {presentKinds.length > 0 && (
+            <div className="mt-2 flex flex-wrap gap-1">
+              <FilterChip
+                label="All"
+                active={relFilter === null}
+                onClick={() => setRelFilter(null)}
+              />
+              {presentKinds.map((k) => (
+                <FilterChip
+                  key={k}
+                  label={KIND_LABEL[k]}
+                  active={relFilter === k}
+                  onClick={() => setRelFilter(relFilter === k ? null : k)}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
 
@@ -206,4 +265,29 @@ function flattenBody(card: Card): string {
   };
   visit(card.body);
   return out.join(" ").slice(0, 160);
+}
+
+function FilterChip({
+  label,
+  active,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  onClick: () => void;
+}): JSX.Element {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={[
+        "rounded-full border px-2 py-0.5 text-[10px] transition",
+        active
+          ? "border-[var(--color-accent)] bg-[var(--color-accent)]/15 text-[var(--color-ink)]"
+          : "border-white/10 bg-white/[0.02] text-[var(--color-ink-dim)] hover:border-white/20 hover:text-[var(--color-ink)]",
+      ].join(" ")}
+    >
+      {label}
+    </button>
+  );
 }

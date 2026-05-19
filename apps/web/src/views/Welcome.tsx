@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { LogoLockup, TsecondMark } from "../brand/Logo.js";
-import { listRaw, clear as clearRecents } from "../platform/recents.js";
+import { listRaw, clear as clearRecents, togglePin as togglePinRecent } from "../platform/recents.js";
 
 type RecentEntry = Awaited<ReturnType<typeof listRaw>>[number];
 
@@ -271,7 +271,7 @@ export function Welcome({ onCreate, onOpen, onSample }: Props): JSX.Element {
           ) : (
             <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
               {recents.slice(0, 6).map((r) => (
-                <li key={r.path + (r.handleId ?? "")}>
+                <li key={r.path + (r.handleId ?? "")} className="relative">
                   <button
                     type="button"
                     onClick={() => onOpen(r.handleId)}
@@ -296,6 +296,24 @@ export function Welcome({ onCreate, onOpen, onSample }: Props): JSX.Element {
                         {fmtRelative(r.lastOpenedAt)}
                       </span>
                     )}
+                  </button>
+                  <button
+                    type="button"
+                    title={r.pinned ? "Unpin" : "Pin to top"}
+                    aria-label={r.pinned ? "Unpin recent" : "Pin recent"}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      await togglePinRecent(r.id);
+                      listRaw().then(setRecents).catch(() => setRecents([]));
+                    }}
+                    className={[
+                      "absolute right-2 top-2 rounded-md p-1 text-xs transition",
+                      r.pinned
+                        ? "text-[var(--color-accent-2)] hover:bg-white/10"
+                        : "text-[var(--color-ink-dim)]/60 opacity-0 hover:bg-white/10 hover:text-[var(--color-ink)] group-hover:opacity-100",
+                    ].join(" ")}
+                  >
+                    {r.pinned ? "★" : "☆"}
                   </button>
                 </li>
               ))}

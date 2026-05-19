@@ -19,6 +19,9 @@ interface RecentRecord {
   path: string;
   handleId: string | null;
   openedAt: number;
+  /** When true, the entry is pinned to the top of the Welcome recents
+   *  grid and is exempt from the MAX-entry trim. */
+  pinned?: boolean;
 }
 
 function recordToRecent(rec: RecentRecord): RecentProject {
@@ -45,23 +48,34 @@ export async function add(input: {
 }): Promise<void> {
   const d = await sharedDb.db();
   const id = input.handleId ?? input.path;
+  const existing = (await d.get(STORE, id)) as RecentRecord | undefined;
   const rec: RecentRecord = {
     id,
     name: input.name,
     path: input.path,
     handleId: input.handleId,
     openedAt: Date.now(),
+    pinned: existing?.pinned ?? false,
   };
   await d.put(STORE, rec);
-  // Trim to MAX
+  // Trim to MAX, but never drop pinned entries.
   const all = (await d.getAll(STORE)) as RecentRecord[];
-  if (all.length > MAX) {
-    const sorted = all.sort((a, b) => b.openedAt - a.openedAt);
+  const unpinned = all.filter((r) => !r.pinned);
+  if (unpinned.length > MAX) {
+    const sorted = unpinned.sort((a, b) => b.openedAt - a.openedAt);
     const drop = sorted.slice(MAX);
     const tx = d.transaction(STORE, "readwrite");
     await Promise.all(drop.map((r) => tx.store.delete(r.id)));
     await tx.done;
   }
+}
+
+export async function togglePin(id: string): Promise<void> {
+  const d = await sharedDb.db();
+  const rec = (await d.get(STORE, id)) as RecentRecord | undefined;
+  if (!rec) return;
+  rec.pinned = !rec.pinned;
+  await d.put(STORE, rec);
 }
 
 export async function touch(handleId: string): Promise<void> {
@@ -79,12 +93,21 @@ export async function clear(): Promise<void> {
 
 /** Internal: list raw records (used by the Welcome view to get handle ids). */
 export async function listRaw(): Promise<
-  Array<RecentProject & { handleId: string | null }>
+  Array<RecentProject & { handleId: string | null; pinned: boolean; id: string }>
 > {
   const d = await sharedDb.db();
   const all = (await d.getAll(STORE)) as RecentRecord[];
-  return all
-    .sort((a, b) => b.openedAt - a.openedAt)
-    .slice(0, MAX)
-    .map((r) => ({ ...recordToRecent(r), handleId: r.handleId }));
+  // Sort: pinned first (by openedAt), then unpinned (by openedAt).
+  const sorted = all.sort((a, b) => {
+    if (!!a.pinned !== !!b.pinned) return a.pinned ? -1 : 1;
+    return b.openedAt - a.openedAt;
+  });
+  return sorted
+    .slice(0, MAX + 6) // allow a few extra slots for pinned overflow
+    .map((r) => ({
+      ...recordToRecent(r),
+      handleId: r.handleId,
+      pinned: !!r.pinned,
+      id: r.id,
+    }));
 }
