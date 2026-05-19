@@ -85,15 +85,50 @@ export function resolveCardStyle(card: Card): {
   label: string;
   tone: string;
   accent: string;
+  /** Optional surface override — when defined, callers should use these
+   *  inline styles instead of the Tailwind `tone` gradient classes. */
+  surface?: {
+    background?: string;
+    color?: string;
+    borderColor?: string;
+    borderStyle?: "solid" | "dashed" | "dotted" | "none";
+    borderWidth?: number;
+    borderRadius?: number;
+    boxShadow?: string;
+  };
 } {
   const type = CARD_TYPE_STYLES[card.type];
+  const accent = card.style?.accent || card.color || type.color;
+  const s = card.style;
+  const surface: NonNullable<ReturnType<typeof resolveCardStyle>["surface"]> = {};
+  if (s?.bg) surface.background = s.bg;
+  if (s?.text) surface.color = s.text;
+  if (s?.stroke) surface.borderColor = s.stroke;
+  if (s?.border) surface.borderStyle = s.border;
+  if (s?.borderWidth !== undefined) surface.borderWidth = s.borderWidth;
+  if (s?.radius !== undefined) surface.borderRadius = s.radius;
+  if (s?.shadow) {
+    surface.boxShadow = SHADOW_PRESETS[s.shadow];
+  }
   return {
     emoji: card.icon || type.emoji,
     label: type.label,
     tone: type.tone,
-    accent: card.color || type.color,
+    accent,
+    ...(Object.keys(surface).length > 0 ? { surface } : {}),
   };
 }
+
+/** Box-shadow CSS for each named preset. */
+export const SHADOW_PRESETS: Record<"none" | "soft" | "lift" | "pop", string> = {
+  none: "none",
+  soft: "0 4px 14px -6px rgba(0,0,0,0.35)",
+  lift: "0 12px 30px -12px rgba(0,0,0,0.55)",
+  pop: "0 18px 40px -10px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.05)",
+};
+
+/** Curated corner-radius options offered in the inspector. */
+export const RADIUS_PRESETS: number[] = [4, 8, 12, 16, 24];
 
 /** Read the optional status from Card.metadata. */
 export function getCardStatus(card: Card): CardStatus | null {

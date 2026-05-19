@@ -24,6 +24,39 @@ export type CardSource = z.infer<typeof CardSource>;
 export const RichDoc = z.object({ type: z.string(), content: z.array(z.any()).optional() }).passthrough();
 export type RichDoc = z.infer<typeof RichDoc>;
 
+/** Per-card visual overrides. All fields optional; undefined → fall back
+ *  to the card type's defaults (CARD_TYPE_STYLES). Lets a user repaint a
+ *  single card without affecting siblings of the same type. */
+export const CardBorderStyle = z.enum(["solid", "dashed", "dotted", "none"]);
+export type CardBorderStyle = z.infer<typeof CardBorderStyle>;
+
+export const CardShadowPreset = z.enum(["none", "soft", "lift", "pop"]);
+export type CardShadowPreset = z.infer<typeof CardShadowPreset>;
+
+export const CardStyle = z
+  .object({
+    /** Card surface background (hex/rgba/CSS colour). Replaces the
+     *  default type-based gradient when set. */
+    bg: z.string().min(1).max(64).optional(),
+    /** Border colour. */
+    stroke: z.string().min(1).max(64).optional(),
+    /** Body text colour. */
+    text: z.string().min(1).max(64).optional(),
+    /** Accent bar colour (left strip + selection ring). Falls back to
+     *  legacy `card.color` then type colour. */
+    accent: z.string().min(1).max(64).optional(),
+    /** Corner radius in px (4 | 8 | 12 | 16 | 24 typically). */
+    radius: z.number().min(0).max(40).optional(),
+    /** Shadow strength preset. */
+    shadow: CardShadowPreset.optional(),
+    /** Border line style. `none` hides the border entirely. */
+    border: CardBorderStyle.optional(),
+    /** Border width in px. */
+    borderWidth: z.number().min(0).max(6).optional(),
+  })
+  .strict();
+export type CardStyle = z.infer<typeof CardStyle>;
+
 export const Card = z.object({
   id: z.string().min(1),
   type: CardType,
@@ -32,6 +65,8 @@ export const Card = z.object({
   tags: z.array(z.string()).default([]),
   color: z.string().optional(),
   icon: z.string().optional(),
+  /** Rich visual overrides. */
+  style: CardStyle.optional(),
   metadata: z.record(z.unknown()).default({}),
   source: CardSource.default("typed"),
   createdAt: z.string(), // ISO-8601

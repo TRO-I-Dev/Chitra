@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import type { Card, CardType, RichDoc } from "@chitra/core";
+import type { Card, CardStyle, CardType, RichDoc } from "@chitra/core";
 import {
   CARD_TYPES,
   CARD_TYPE_STYLES,
   ACCENT_PALETTE,
   ICON_CHOICES,
+  RADIUS_PRESETS,
   STATUS_OPTIONS,
   PRIORITY_OPTIONS,
   getCardStatus,
@@ -54,6 +55,7 @@ export function CardInspector({
   const [tags, setTags] = useState("");
   const [accent, setAccent] = useState<string | null>(null);
   const [icon, setIcon] = useState<string | null>(null);
+  const [style, setStyle] = useState<CardStyle | null>(null);
   const [status, setStatus] = useState<CardStatus | null>(null);
   const [priority, setPriority] = useState<CardPriority | null>(null);
 
@@ -66,6 +68,7 @@ export function CardInspector({
     setTags(card.tags.join(", "));
     setAccent(card.color ?? null);
     setIcon(card.icon ?? null);
+    setStyle(card.style ?? null);
     setStatus(getCardStatus(card));
     setPriority(getCardPriority(card));
   }, [card?.id]);
@@ -84,6 +87,9 @@ export function CardInspector({
       metadata: meta,
       color: accent ?? null,
       icon: icon ?? null,
+      // `null` clears the override; an empty object would still trigger
+      // schema validation but produce no visual change.
+      style: style && Object.keys(style).length > 0 ? style : null,
     };
   };
 
@@ -94,6 +100,7 @@ export function CardInspector({
     tags !== card.tags.join(", ") ||
     accent !== (card.color ?? null) ||
     icon !== (card.icon ?? null) ||
+    JSON.stringify(style ?? {}) !== JSON.stringify(card.style ?? {}) ||
     status !== getCardStatus(card) ||
     priority !== getCardPriority(card)
     : false;
@@ -127,7 +134,7 @@ export function CardInspector({
     return () => window.clearTimeout(id);
     // `buildPatch` intentionally reads the current local form state.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [card?.id, dirty, title, bodyText, type, tags, accent, icon, status, priority, updateCardLive]);
+  }, [card?.id, dirty, title, bodyText, type, tags, accent, icon, style, status, priority, updateCardLive]);
 
   // Commit any pending (debounced) edit when the inspector closes or switches
   // to a different card — prevents losing colour/icon/status changes when the
@@ -297,6 +304,9 @@ export function CardInspector({
             </div>
           </div>
 
+          {/* Card style — surface, border, radius, shadow overrides. */}
+          <StyleSection style={style} onChange={setStyle} />
+
           {/* Status & priority */}
           <div className="grid grid-cols-2 gap-x-4 border-t border-white/5 px-5 py-3">
             <div>
@@ -433,5 +443,227 @@ export function CardInspector({
         </motion.div>
       </motion.div>
     </AnimatePresence>
+  );
+}
+
+/* ------------------------------------------------------------------ *
+ *  Style section — per-card surface, border, radius, shadow.         *
+ * ------------------------------------------------------------------ */
+
+const BORDER_STYLES: Array<{ value: NonNullable<CardStyle["border"]>; label: string }> = [
+  { value: "solid", label: "Solid" },
+  { value: "dashed", label: "Dashed" },
+  { value: "dotted", label: "Dotted" },
+  { value: "none", label: "None" },
+];
+
+const SHADOW_OPTIONS: Array<{ value: NonNullable<CardStyle["shadow"]>; label: string }> = [
+  { value: "none", label: "None" },
+  { value: "soft", label: "Soft" },
+  { value: "lift", label: "Lift" },
+  { value: "pop", label: "Pop" },
+];
+
+function StyleSection({
+  style,
+  onChange,
+}: {
+  style: CardStyle | null;
+  onChange: (next: CardStyle | null) => void;
+}): JSX.Element {
+  const isCustom = !!style && Object.keys(style).length > 0;
+
+  // Patch helper: merges + drops undefined/empty values so the persisted
+  // object stays minimal (and JSON-diff-friendly for the dirty check).
+  const patch = (next: Partial<CardStyle>): void => {
+    const merged: CardStyle = { ...(style ?? {}), ...next };
+    for (const k of Object.keys(merged) as Array<keyof CardStyle>) {
+      const v = merged[k];
+      if (v === undefined || v === null || v === "") delete merged[k];
+    }
+    onChange(Object.keys(merged).length > 0 ? merged : null);
+  };
+
+  return (
+    <div className="border-t border-white/5 px-5 py-3">
+      <div className="mb-2 flex items-center justify-between text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]">
+        <span>Card style</span>
+        {isCustom && (
+          <button
+            type="button"
+            onClick={() => onChange(null)}
+            className="rounded px-2 py-0.5 text-[10px] hover:bg-white/5"
+          >
+            Reset
+          </button>
+        )}
+      </div>
+
+      <div className="grid grid-cols-3 gap-2">
+        <ColorInput
+          label="Surface"
+          value={style?.bg ?? ""}
+          onChange={(v) => patch({ bg: v || undefined })}
+        />
+        <ColorInput
+          label="Border"
+          value={style?.stroke ?? ""}
+          onChange={(v) => patch({ stroke: v || undefined })}
+        />
+        <ColorInput
+          label="Text"
+          value={style?.text ?? ""}
+          onChange={(v) => patch({ text: v || undefined })}
+        />
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]/80">
+            Corner radius
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {RADIUS_PRESETS.map((r) => {
+              const active = (style?.radius ?? 16) === r;
+              return (
+                <button
+                  type="button"
+                  key={r}
+                  onClick={() => patch({ radius: r })}
+                  className={[
+                    "rounded-md border px-2 py-1 text-[11px] transition",
+                    active
+                      ? "border-white/40 bg-white/10"
+                      : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]",
+                  ].join(" ")}
+                  style={{ borderRadius: r }}
+                >
+                  {r}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]/80">
+            Shadow
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {SHADOW_OPTIONS.map((s) => {
+              const active = (style?.shadow ?? "lift") === s.value;
+              return (
+                <button
+                  type="button"
+                  key={s.value}
+                  onClick={() => patch({ shadow: s.value })}
+                  className={[
+                    "rounded-md border px-2 py-1 text-[11px] transition",
+                    active
+                      ? "border-white/40 bg-white/10"
+                      : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]",
+                  ].join(" ")}
+                >
+                  {s.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-3 grid grid-cols-2 gap-3">
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]/80">
+            Border style
+          </div>
+          <div className="flex flex-wrap gap-1">
+            {BORDER_STYLES.map((b) => {
+              const active = (style?.border ?? "solid") === b.value;
+              return (
+                <button
+                  type="button"
+                  key={b.value}
+                  onClick={() => patch({ border: b.value })}
+                  className={[
+                    "rounded-md border px-2 py-1 text-[11px] transition",
+                    active
+                      ? "border-white/40 bg-white/10"
+                      : "border-white/10 bg-white/[0.02] hover:bg-white/[0.06]",
+                  ].join(" ")}
+                >
+                  {b.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div>
+          <div className="mb-1 text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]/80">
+            Border width
+          </div>
+          <input
+            type="range"
+            min={0}
+            max={4}
+            step={0.5}
+            value={style?.borderWidth ?? 1}
+            onChange={(e) => patch({ borderWidth: Number(e.target.value) })}
+            className="h-1 w-full cursor-pointer accent-[var(--color-accent-2)]"
+          />
+          <div className="text-right text-[10px] text-[var(--color-ink-dim)]">
+            {(style?.borderWidth ?? 1).toFixed(1)} px
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ColorInput({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (next: string) => void;
+}): JSX.Element {
+  // The native colour input doesn't accept rgba/empty strings, so we
+  // keep a separate text field for free-form CSS colours and only
+  // mirror to the swatch when the value parses as #rrggbb.
+  const hex = /^#[0-9a-fA-F]{6}$/.test(value) ? value : "#202028";
+  return (
+    <label className="block">
+      <span className="mb-1 block text-[10px] uppercase tracking-widest text-[var(--color-ink-dim)]/80">
+        {label}
+      </span>
+      <div className="flex items-center gap-1.5 rounded-md border border-white/10 bg-black/30 px-1.5 py-1">
+        <input
+          type="color"
+          value={hex}
+          onChange={(e) => onChange(e.target.value)}
+          className="h-5 w-5 cursor-pointer rounded border-0 bg-transparent p-0"
+          aria-label={`${label} colour`}
+        />
+        <input
+          type="text"
+          value={value}
+          placeholder="auto"
+          onChange={(e) => onChange(e.target.value)}
+          className="w-full bg-transparent text-[11px] text-[var(--color-ink)] outline-none placeholder:text-[var(--color-ink-dim)]/40"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            title="Clear"
+            className="text-[10px] text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]"
+          >
+            ×
+          </button>
+        )}
+      </div>
+    </label>
   );
 }

@@ -70,12 +70,22 @@ export function CardNode({ data, selected }: NodeProps): JSX.Element {
       />
       <div
         className={[
-          "group relative overflow-hidden rounded-2xl border bg-gradient-to-br p-3 pl-4 shadow-lg shadow-black/40 backdrop-blur-md transition",
-          tone,
+          "group relative overflow-hidden p-3 pl-4 backdrop-blur-md transition",
+          // Only apply the type's gradient/tone when no custom surface bg
+          // override is set; otherwise the override would be invisible
+          // beneath Tailwind's `bg-gradient-to-br` utility classes.
+          resolved.surface?.background
+            ? "border"
+            : "border bg-gradient-to-br shadow-lg shadow-black/40 " + tone,
         ].join(" ")}
         style={{
           width: w,
           ...(h ? { height: h } : {}),
+          // Default rounded-2xl (16px) when no override.
+          borderRadius: resolved.surface?.borderRadius ?? 16,
+          // Spread overrides last so they win over defaults but before the
+          // selection ring (which always takes precedence visually).
+          ...(resolved.surface ?? {}),
           ...(selected
             ? {
                 boxShadow: `0 0 0 2px ${resolved.accent}99, 0 12px 30px -12px ${resolved.accent}80`,

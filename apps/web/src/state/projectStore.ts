@@ -14,9 +14,10 @@ import type {
 } from "@chitra/core";
 import { type Template, seedToCard } from "@chitra/templates";
 
-type CardPatch = Omit<Partial<Card>, "color" | "icon"> & {
+type CardPatch = Omit<Partial<Card>, "color" | "icon" | "style"> & {
   color?: string | null;
   icon?: string | null;
+  style?: Card["style"] | null;
 };
 
 export interface ProjectState {
