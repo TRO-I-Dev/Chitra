@@ -111,7 +111,11 @@ export default defineConfig({
     },
   },
   server: {
-    port: 5179,
+    // Force IPv4 loopback — host:false lets Node try ::1 first, where
+    // Hyper-V/WinNAT EACCES masks the real cause. Port 5179 (and many
+    // ports in the 5100-5240 range) are reserved by Hyper-V on this host.
+    host: "127.0.0.1",
+    port: 5273,
     strictPort: false,
   },
 });
