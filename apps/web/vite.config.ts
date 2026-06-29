@@ -115,7 +115,7 @@ export default defineConfig({
     // Hyper-V/WinNAT EACCES masks the real cause. Port 5179 (and many
     // ports in the 5100-5240 range) are reserved by Hyper-V on this host.
     host: "127.0.0.1",
-    port: 5273,
+    port: 5673,
     strictPort: false,
   },
 });
