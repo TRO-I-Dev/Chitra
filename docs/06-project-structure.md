@@ -23,7 +23,7 @@ chitra/
 ├── netlify.toml             ← Netlify build/deploy
 ├── package.json             ← Root scripts & devDeps
 ├── pnpm-lock.yaml
-├── pnpm-workspace.yaml      ← Workspaces: apps/web + packages/*
+├── pnpm-workspace.yaml      ← Workspaces: apps/web + apps/desktop + packages/*
 ├── tsconfig.base.json       ← Strict TS base config
 └── README.md
 ```
@@ -92,8 +92,41 @@ for the in-depth tour. Key contracts:
 - **`state/projectStore.ts`** — every piece of mutable app state lives
   here. The store owns project loading, dirty tracking, history, and
   every CRUD operation on cards / nodes / edges / boards / palettes.
+- **`airboard/`** — Air Board: camera hand-tracking input. Self-contained
+  and lazy-loaded; the rest of the renderer only knows about it through
+  the `air` workspace mode. See [11-air-board.md](11-air-board.md).
 
-## 6.7 TypeScript project graph
+## 6.7 `apps/desktop`
+
+The Electron shell. It contains **no UI** — `electron.vite.config.ts` points
+Vite's renderer root at `apps/web`, so the desktop renderer *is* the web app
+and the two can never drift.
+
+```
+apps/desktop/
+├── electron.vite.config.ts  ← 3 builds: main, preload, renderer(=apps/web)
+├── electron-builder.yml     ← installers; asarUnpacks the MediaPipe assets
+└── src/
+    ├── main/
+    │   ├── index.ts         ← window, IPC, navigation guards, single instance
+    │   ├── appProtocol.ts   ← the privileged app:// scheme (see below)
+    │   ├── permissions.ts   ← deny-by-default web-permission policy + camera
+    │   ├── menu.ts          ← native menubar → `menu` IPC → command bus
+    │   └── updater.ts       ← electron-updater (packaged builds only)
+    └── preload/index.ts     ← the small `window.chitra` bridge
+```
+
+Three things differ from the browser build, all driven by Air Board:
+
+1. The renderer is served over a custom **`app://`** scheme rather than
+   `file://`, because `file://` is a null origin where `fetch()` is blocked —
+   which breaks MediaPipe's WASM and model loading outright.
+2. The CSP includes `'wasm-unsafe-eval'` and `blob:`, injected at build time
+   so `apps/web/index.html` stays Electron-agnostic.
+3. Web permissions are deny-by-default, allowing only `media` from our own
+   origin, with the macOS TCC camera prompt raised over IPC.
+
+## 6.8 TypeScript project graph
 
 ```
 tsconfig.base.json

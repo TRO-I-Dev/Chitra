@@ -1,0 +1,40 @@
+{
+  "name": "@chitra/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Chitra desktop shell — Electron wrapper around the Chitra studio",
+  "main": "./out/main/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "package": "electron-vite build && electron-builder",
+    "package:win": "electron-vite build && electron-builder --win",
+    "package:mac": "electron-vite build && electron-builder --mac",
+    "package:linux": "electron-vite build && electron-builder --linux"
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
+  },
+  "devDependencies": {
+    "@chitra/core": "workspace:*",
+    "@chitra/composer": "workspace:*",
+    "@chitra/templates": "workspace:*",
+    "@chitra/exports": "workspace:*",
+    "@chitra/web": "workspace:*",
+    "@tailwindcss/vite": "4.0.0-beta.3",
+    "@types/node": "20.16.10",
+    "@vitejs/plugin-react": "4.3.2",
+    "electron": "32.2.0",
+    "electron-builder": "25.1.8",
+    "electron-vite": "2.3.0",
+    "fflate": "0.8.2",
+    "nanoid": "5.0.7",
+    "tailwindcss": "4.0.0-beta.3",
+    "typescript": "5.6.3",
+    "vite": "5.4.8",
+    "zod": "3.23.8"
+  }
+}

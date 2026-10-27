@@ -2,9 +2,14 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import { App } from "./App.js";
 import { bootstrapTheme } from "./state/theme.js";
+import { connectDesktopMenu } from "./platform/desktopBridge.js";
 import "./index.css";
 
 bootstrapTheme();
+
+// In the Electron shell this pipes the native menubar into the command bus.
+// No-op in a browser.
+connectDesktopMenu();
 
 // One-shot recovery: an early build registered a service worker that can
 // keep serving stale chunks across reloads. If we detect that the running

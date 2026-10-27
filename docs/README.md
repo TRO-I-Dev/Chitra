@@ -18,6 +18,7 @@ This folder contains the canonical documentation for the Chitra project.
 | [07-data-model.md](07-data-model.md) | Domain types, schema, persistence |
 | [08-keyboard-and-ux.md](08-keyboard-and-ux.md) | Shortcuts and command palette |
 | [09-deployment.md](09-deployment.md) | Netlify config, PWA notes |
+| [11-air-board.md](11-air-board.md) | Air Board — camera hand-tracking input |
 | [10-faq.md](10-faq.md) | Common questions & troubleshooting |
 
 A single combined Word document (`Chitra-Documentation.docx`) is generated

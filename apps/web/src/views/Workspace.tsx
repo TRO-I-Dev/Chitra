@@ -1,18 +1,23 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { motion } from "framer-motion";
+import { Suspense, lazy, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { type WorkspaceMode, useMode } from "../state/mode.js";
 import { useProjectStore } from "../state/projectStore.js";
 import { useTheme } from "../state/theme.js";
-import { useMode, type WorkspaceMode } from "../state/mode.js";
 import { Inbox } from "./Inbox.js";
 const Composer = lazy(() => import("./Composer.js").then((m) => ({ default: m.Composer })));
 import { LogoMark, Wordmark } from "../brand/Logo.js";
 const Templates = lazy(() => import("./Templates.js").then((m) => ({ default: m.Templates })));
 const ExportMenu = lazy(() => import("./ExportMenu.js").then((m) => ({ default: m.ExportMenu })));
 const Settings = lazy(() => import("./Settings.js").then((m) => ({ default: m.Settings })));
-const DecisionLog = lazy(() => import("./DecisionLog.js").then((m) => ({ default: m.DecisionLog })));
-import { CardInspector } from "./CardInspector.js";
+const DecisionLog = lazy(() =>
+  import("./DecisionLog.js").then((m) => ({ default: m.DecisionLog })),
+);
+import type { Card, CardType, Project } from "@chitra/core";
+import { useAirBoard } from "../airboard/airBoardStore.js";
 import { Canvas } from "../canvas/Canvas.js";
+import { explainDiagram } from "../composer/explainDiagram.js";
+import { importRows } from "../exports/importTable.js";
 import {
   exportDocx,
   exportEmbedSnippet,
@@ -25,9 +30,7 @@ import {
   publishNotion,
 } from "../exports/runExport.js";
 import { platform } from "../platform/index.js";
-import { explainDiagram } from "../composer/explainDiagram.js";
-import { importRows } from "../exports/importTable.js";
-import type { Card, CardType, Project } from "@chitra/core";
+import { CardInspector } from "./CardInspector.js";
 
 export function Workspace(): JSX.Element {
   const project = useProjectStore((s) => s.project);
@@ -45,6 +48,9 @@ export function Workspace(): JSX.Element {
   const themeMode = useTheme((s) => s.mode);
   const toggleTheme = useTheme((s) => s.toggle);
   const workMode = useMode((s) => s.mode);
+  // Air Board's clean surface: the sidebar and tabs go away too, so the whole
+  // window is drawable rather than just the canvas column.
+  const airClean = useAirBoard((s) => s.cleanBoard) && workMode === "air";
   const setWorkMode = useMode((s) => s.setMode);
 
   const [composerOpen, setComposerOpen] = useState(false);
@@ -55,7 +61,11 @@ export function Workspace(): JSX.Element {
   const [inspectorCollapsed, setInspectorCollapsed] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [explain, setExplain] = useState<{ busy: boolean; text: string | null; error: string | null } | null>(null);
+  const [explain, setExplain] = useState<{
+    busy: boolean;
+    text: string | null;
+    error: string | null;
+  } | null>(null);
   const addAtCenterRef = useRef<((cardId: string) => void) | null>(null);
 
   // Global shortcuts: Ctrl+N (new card), Ctrl+S (save), Ctrl+Shift+S (save as),
@@ -95,6 +105,9 @@ export function Workspace(): JSX.Element {
       } else if (cmd && k === "2") {
         e.preventDefault();
         setWorkMode("sketch");
+      } else if (cmd && k === "3") {
+        e.preventDefault();
+        setWorkMode("air");
       } else if (k === "[" && !cmd) {
         // Collapse / hide the docked inspector.
         if (inspectorCardId && !inspectorCollapsed) {
@@ -139,6 +152,22 @@ export function Workspace(): JSX.Element {
     });
   }, [workMode]);
 
+  // Air Board's first run asks for the camera and downloads ~19 MB of model
+  // assets, so set expectations before the browser prompt appears.
+  const airHintShownRef = useRef(false);
+  useEffect(() => {
+    if (workMode !== "air") return;
+    if (airHintShownRef.current) return;
+    airHintShownRef.current = true;
+    const calibrated = Object.keys(useAirBoard.getState().profile.calibration).length > 0;
+    toast("Air Board — your hand is the pen", {
+      description: calibrated
+        ? "Open palm to browse tools, close your fist to choose, then point to draw."
+        : "Run calibration (✋ in the toolbar) first — it fits the gestures to your hand.",
+      duration: 6000,
+    });
+  }, [workMode]);
+
   // Native menu → renderer actions.
   useEffect(() => {
     const off = platform.onMenu((action) => {
@@ -171,7 +200,11 @@ export function Workspace(): JSX.Element {
           toggleTheme();
           break;
         case "show-onboarding":
-          try { localStorage.removeItem("chitra.onboarded.v1"); } catch { /* ignore */ }
+          try {
+            localStorage.removeItem("chitra.onboarded.v1");
+          } catch {
+            /* ignore */
+          }
           window.location.reload();
           break;
         case "mode-structure":
@@ -179,6 +212,23 @@ export function Workspace(): JSX.Element {
           break;
         case "mode-sketch":
           setWorkMode("sketch");
+          break;
+        case "mode-air":
+          setWorkMode("air");
+          break;
+        case "airboard-calibrate":
+          // Entering the mode mounts the overlay; the wizard needs a live
+          // landmark feed, so open it only once the camera is up.
+          setWorkMode("air");
+          useAirBoard.getState().setCalibrationOpen(true);
+          break;
+        case "airboard-settings":
+          setWorkMode("air");
+          useAirBoard.getState().setSettingsOpen(true);
+          break;
+        case "airboard-tutorial":
+          setWorkMode("air");
+          useAirBoard.getState().setTutorialOpen(true);
           break;
         case "ai-explain-diagram":
           void runExplainDiagram();
@@ -222,7 +272,8 @@ export function Workspace(): JSX.Element {
     }
   }
 
-  async function runExplainDiagram(): Promise<void> {    const proj = useProjectStore.getState().project;
+  async function runExplainDiagram(): Promise<void> {
+    const proj = useProjectStore.getState().project;
     const boardId = useProjectStore.getState().currentBoardId;
     if (!proj || !boardId) return;
     const board = proj.boards.find((b) => b.id === boardId);
@@ -231,7 +282,11 @@ export function Workspace(): JSX.Element {
     try {
       const out = await explainDiagram({ board, cards: proj.cards });
       if (out == null) {
-        setExplain({ busy: false, text: null, error: "No AI provider configured. Add an API key in Settings." });
+        setExplain({
+          busy: false,
+          text: null,
+          error: "No AI provider configured. Add an API key in Settings.",
+        });
       } else {
         setExplain({ busy: false, text: out, error: null });
       }
@@ -254,7 +309,12 @@ export function Workspace(): JSX.Element {
           type: r.type,
           body: {
             type: "doc",
-            content: [{ type: "paragraph", content: r.bodyText ? [{ type: "text", text: r.bodyText }] : [] }],
+            content: [
+              {
+                type: "paragraph",
+                content: r.bodyText ? [{ type: "text", text: r.bodyText }] : [],
+              },
+            ],
           },
         });
         if (r.tags.length > 0) {
@@ -329,12 +389,14 @@ export function Workspace(): JSX.Element {
             <motion.span
               className="shrink-0 text-[var(--color-accent-2)]"
               animate={{ opacity: [0.4, 1, 0.4] }}
-              transition={{ repeat: Infinity, duration: 1.6, ease: "easeInOut" }}
+              transition={{ repeat: Number.POSITIVE_INFINITY, duration: 1.6, ease: "easeInOut" }}
             >
               ● unsaved
             </motion.span>
           ) : lastSavedAt ? (
-            <span className="hidden shrink-0 opacity-60 lg:inline">saved {timeAgo(lastSavedAt)}</span>
+            <span className="hidden shrink-0 opacity-60 lg:inline">
+              saved {timeAgo(lastSavedAt)}
+            </span>
           ) : null}
         </div>
 
@@ -348,7 +410,9 @@ export function Workspace(): JSX.Element {
           <Suspense fallback={null}>
             <ExportMenu project={project} onOpenSettings={() => setSettingsOpen(true)} />
           </Suspense>
-          <BarBtn onClick={() => setSettingsOpen(true)} title="Settings">⚙</BarBtn>
+          <BarBtn onClick={() => setSettingsOpen(true)} title="Settings">
+            ⚙
+          </BarBtn>
           <BarBtn onClick={toggleTheme} title="Toggle theme">
             {themeMode === "studio" ? "◐" : "◑"}
           </BarBtn>
@@ -359,7 +423,9 @@ export function Workspace(): JSX.Element {
           <BarBtn onClick={saveAs} disabled={saving} title="Save as…">
             Save as
           </BarBtn>
-          <BarBtn onClick={closeProject} title="Close project">Close</BarBtn>
+          <BarBtn onClick={closeProject} title="Close project">
+            Close
+          </BarBtn>
         </div>
       </header>
 
@@ -370,24 +436,32 @@ export function Workspace(): JSX.Element {
       )}
 
       <div className="flex flex-1 overflow-hidden">
-        <Inbox
-          cards={project.cards}
-          edges={project.boards.flatMap((b) =>
-            b.edges.map((e) => ({ kind: e.kind, source: e.source, target: e.target })),
-          )}
-          onAddClick={() => setComposerOpen(true)}
-          onDelete={(id) => removeCard(id)}
-          onOpen={(id) => { setInspectorCardId(id); setInspectorCollapsed(false); }}
-          onAddToCanvas={(id) => addAtCenterRef.current?.(id)}
-          onImportCards={(file) => void runImportCards(file)}
-        />
+        {!airClean && (
+          <Inbox
+            cards={project.cards}
+            edges={project.boards.flatMap((b) =>
+              b.edges.map((e) => ({ kind: e.kind, source: e.source, target: e.target })),
+            )}
+            onAddClick={() => setComposerOpen(true)}
+            onDelete={(id) => removeCard(id)}
+            onOpen={(id) => {
+              setInspectorCardId(id);
+              setInspectorCollapsed(false);
+            }}
+            onAddToCanvas={(id) => addAtCenterRef.current?.(id)}
+            onImportCards={(file) => void runImportCards(file)}
+          />
+        )}
 
         {/* Studio canvas */}
         <main className="relative flex flex-1 flex-col overflow-hidden">
-          <BoardTabs />
+          {!airClean && <BoardTabs />}
           <div className="relative flex-1 overflow-hidden">
             <Canvas
-              onOpenCard={(id) => { setInspectorCardId(id); setInspectorCollapsed(false); }}
+              onOpenCard={(id) => {
+                setInspectorCardId(id);
+                setInspectorCollapsed(false);
+              }}
               registerAddAtCenter={(fn) => {
                 addAtCenterRef.current = fn;
               }}
@@ -450,7 +524,9 @@ export function Workspace(): JSX.Element {
         />
       </Suspense>
       <CardInspector
-        card={inspectorCardId ? project.cards.find((c) => c.id === inspectorCardId) ?? null : null}
+        card={
+          inspectorCardId ? (project.cards.find((c) => c.id === inspectorCardId) ?? null) : null
+        }
         collapsed={inspectorCollapsed}
         onClose={() => setInspectorCardId(null)}
       />
@@ -465,30 +541,43 @@ export function Workspace(): JSX.Element {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-sm font-semibold text-[var(--color-ink)]">✨ Diagram explanation</h2>
+              <h2 className="text-sm font-semibold text-[var(--color-ink)]">
+                ✨ Diagram explanation
+              </h2>
               <button
                 type="button"
                 onClick={() => setExplain(null)}
                 className="rounded p-1 text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]"
                 aria-label="Close"
-              >×</button>
+              >
+                ×
+              </button>
             </div>
             {explain.busy && (
               <div className="py-8 text-center text-sm text-[var(--color-ink-dim)]">Thinking…</div>
             )}
             {explain.error && (
-              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">{explain.error}</div>
+              <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-300">
+                {explain.error}
+              </div>
             )}
             {explain.text && (
-              <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-ink)]">{explain.text}</div>
+              <div className="max-h-[60vh] overflow-y-auto whitespace-pre-wrap text-sm leading-relaxed text-[var(--color-ink)]">
+                {explain.text}
+              </div>
             )}
             {explain.text && (
               <div className="mt-4 flex justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => { void navigator.clipboard.writeText(explain.text ?? ""); toast.success("Copied"); }}
+                  onClick={() => {
+                    void navigator.clipboard.writeText(explain.text ?? "");
+                    toast.success("Copied");
+                  }}
                   className="rounded-lg border border-white/10 px-3 py-1.5 text-xs text-[var(--color-ink-dim)] hover:text-[var(--color-ink)]"
-                >Copy</button>
+                >
+                  Copy
+                </button>
               </div>
             )}
           </div>
@@ -498,13 +587,27 @@ export function Workspace(): JSX.Element {
       {/* Status footer */}
       <footer className="flex h-6 shrink-0 items-center justify-between border-t border-white/5 bg-[#0a0a10] px-3 text-[10px] text-[var(--color-ink-dim)]">
         <div className="flex items-center gap-3">
-          <span>{project.cards.length} cards · {project.boards.length} board{project.boards.length === 1 ? "" : "s"}</span>
+          <span>
+            {project.cards.length} cards · {project.boards.length} board
+            {project.boards.length === 1 ? "" : "s"}
+          </span>
         </div>
         <div className="flex items-center gap-3">
-          <span><kbd className="rounded bg-white/5 px-1">Ctrl+N</kbd> compose</span>
-          <span><kbd className="rounded bg-white/5 px-1">Ctrl+Z</kbd> undo</span>
-          <span><kbd className="rounded bg-white/5 px-1">Ctrl+S</kbd> save</span>
-          <span><kbd className="rounded bg-white/5 px-1">Ctrl+T</kbd> templates</span>
+          <span>
+            <kbd className="rounded bg-white/5 px-1">Ctrl+N</kbd> compose
+          </span>
+          <span>
+            <kbd className="rounded bg-white/5 px-1">Ctrl+Z</kbd> undo
+          </span>
+          <span>
+            <kbd className="rounded bg-white/5 px-1">Ctrl+S</kbd> save
+          </span>
+          <span>
+            <kbd className="rounded bg-white/5 px-1">Ctrl+T</kbd> templates
+          </span>
+          <span>
+            <kbd className="rounded bg-white/5 px-1">Ctrl+3</kbd> air board
+          </span>
         </div>
       </footer>
     </div>
@@ -544,9 +647,7 @@ function addCardWithBody(
     type: args.type,
     body: {
       type: "doc",
-      content: [
-        { type: "paragraph", content: [{ type: "text", text: args.bodyText }] },
-      ],
+      content: [{ type: "paragraph", content: [{ type: "text", text: args.bodyText }] }],
     },
   });
 }
@@ -640,6 +741,7 @@ function ModeStrip({
   const items: Array<{ value: WorkspaceMode; label: string; icon: string; hint: string }> = [
     { value: "structure", label: "Structure", icon: "▣", hint: "Ctrl+1" },
     { value: "sketch", label: "Sketch", icon: "✎", hint: "Ctrl+2" },
+    { value: "air", label: "Air Board", icon: "✋", hint: "Ctrl+3 — draw with your hands" },
   ];
   return (
     <div className="relative flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 p-0.5 text-[11px] backdrop-blur-md">

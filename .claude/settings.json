@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(domain:ai.google.dev)",
+      "WebFetch(domain:developers.google.com)",
+      "Bash(npm view *)",
+      "Bash(pnpm --filter @chitra/web add @mediapipe/tasks-vision@1.0.0)",
+      "Bash(curl -sL -o public/mediapipe/models/hand_landmarker.task \"https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task\")",
+      "Bash(pnpm install *)",
+      "Bash(rm -rf out)",
+      "Bash(npx electron-vite *)",
+      "Bash(npx electron *)",
+      "Bash(unset ELECTRON_RUN_AS_NODE)",
+      "Bash(node \"C:\\\\Users\\\\jeerv\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Tsecond-TRO-RA-Projects-Creatives-Tools-Chitra\\\\c1e7f8d5-4f76-48c8-95f5-b2ca9f745fb9\\\\scratchpad\\\\verify-desktop.mjs\")",
+      "Bash(cp \"C:\\\\Users\\\\jeerv\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\c--Tsecond-TRO-RA-Projects-Creatives-Tools-Chitra\\\\c1e7f8d5-4f76-48c8-95f5-b2ca9f745fb9\\\\scratchpad\\\\verify-desktop.mjs\" ./.verify-desktop.mjs)",
+      "Bash(node ./.verify-desktop.mjs)",
+      "Bash(curl -s http://127.0.0.1:9222/json/version)",
+      "Bash(npx biome *)",
+      "Bash(pnpm build:desktop)",
+      "Bash(ls \"C:\\\\Users\\\\jeerv\\\\.claude\\\\projects\\\\c--Tsecond-TRO-RA-Projects-Creatives-Tools-Chitra\\\\memory\\\\\" 2>&1 | head)",
+      "Read(//c/Users/jeerv/.claude/projects/c--Tsecond-TRO-RA-Projects-Creatives-Tools-Chitra/**)",
+      "Bash(ls -a /c/Users/jeerv/.claude/projects/c--Tsecond-TRO-RA-Projects-Creatives-Tools-Chitra/memory/ 2>&1 | head)",
+      "Read(//c/Users/jeerv/.claude/projects/c--Tsecond-TRO-RA-Projects-Creatives-Tools-Chitra/memory//**)",
+      "PowerShell(Get-Process electron -ErrorAction SilentlyContinue | Select-Object Id, ProcessName, StartTime | Format-Table -AutoSize; if \\(-not \\(Get-Process electron -ErrorAction SilentlyContinue\\)\\) { \"No lingering electron processes — camera released.\" })",
+      "Bash(timeout 12 npx electron .)",
+      "PowerShell($p = Get-Process electron -ErrorAction SilentlyContinue; if \\($p\\) { $p | Select-Object Id, StartTime | Format-Table -AutoSize; \"count: $\\($p.Count\\)\" } else { \"none\" })",
+      "PowerShell(Get-Process electron -ErrorAction SilentlyContinue | Stop-Process -Force; Start-Sleep -Seconds 2; \"electron: $\\(\\(Get-Process electron -ErrorAction SilentlyContinue | Measure-Object\\).Count\\) running\")",
+      "PowerShell(Get-Process electron -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(\"clean\")",
+      "Bash(python3 -)",
+      "Bash(node --check perf.mjs)"
+    ]
+  }
+}

@@ -1,43 +1,46 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  Controls,
-  MiniMap,
-  ReactFlow,
-  ReactFlowProvider,
-  SelectionMode,
-  applyEdgeChanges,
-  applyNodeChanges,
   type Connection,
+  Controls,
   type Edge,
   type EdgeChange,
   type EdgeTypes,
+  MiniMap,
   type Node,
   type NodeChange,
   type NodeTypes,
   type OnSelectionChangeParams,
+  ReactFlow,
   type ReactFlowInstance,
+  ReactFlowProvider,
+  SelectionMode,
+  applyEdgeChanges,
+  applyNodeChanges,
 } from "@xyflow/react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "@xyflow/react/dist/style.css";
 import { toast } from "sonner";
 
 import type { BoardEdge, BoardNode, EdgeKind } from "@chitra/core";
-import { useCardMap, useCurrentBoard, useProjectStore } from "../state/projectStore.js";
-import { useMode } from "../state/mode.js";
-import { CardNode, type CardNodeData } from "./CardNode.js";
-import { FrameNode } from "./FrameNode.js";
-import { EDGE_KINDS, EDGE_STYLES, resolveEdgeStyle } from "./edgeStyles.js";
-import { EdgeStylePanel } from "./EdgeStylePanel.js";
-import { autoLayout, type LayoutDirection } from "./autoLayout.js";
-import { CanvasBackground } from "./CanvasBackground.js";
-import { BackgroundPanel } from "./BackgroundPanel.js";
-import { ChitraEdge, type ChitraEdgeData } from "./ChitraEdge.js";
-import { SketchOverlay } from "./SketchOverlay.js";
-import { AlignToolbar, applyAlignment, nudgeNodes, type AlignAction } from "./AlignToolbar.js";
-import { computeSnap, type Guide } from "./snapEngine.js";
-import { SnapGuideOverlay } from "./SnapGuideOverlay.js";
-import { ThemeStudio } from "../views/ThemeStudio.js";
+import { LazyAirBoard } from "../airboard/LazyAirBoard.js";
+import { useAirBoard } from "../airboard/airBoardStore.js";
+import { registerFlowApi } from "../airboard/flowBridge.js";
 import { CARD_DRAG_MIME, clearDraggedCardId, getDraggedCardId } from "../dragState.js";
 import { quickExportDiagramPng } from "../exports/runExport.js";
+import { useMode } from "../state/mode.js";
+import { useCardMap, useCurrentBoard, useProjectStore } from "../state/projectStore.js";
+import { ThemeStudio } from "../views/ThemeStudio.js";
+import { type AlignAction, AlignToolbar, applyAlignment, nudgeNodes } from "./AlignToolbar.js";
+import { BackgroundPanel } from "./BackgroundPanel.js";
+import { CanvasBackground } from "./CanvasBackground.js";
+import { CardNode, type CardNodeData } from "./CardNode.js";
+import { ChitraEdge, type ChitraEdgeData } from "./ChitraEdge.js";
+import { EdgeStylePanel } from "./EdgeStylePanel.js";
+import { FrameNode } from "./FrameNode.js";
+import { SketchOverlay } from "./SketchOverlay.js";
+import { SnapGuideOverlay } from "./SnapGuideOverlay.js";
+import { type LayoutDirection, autoLayout } from "./autoLayout.js";
+import { EDGE_KINDS, EDGE_STYLES, resolveEdgeStyle } from "./edgeStyles.js";
+import { type Guide, computeSnap } from "./snapEngine.js";
 
 const nodeTypes: NodeTypes = { card: CardNode, frame: FrameNode };
 const edgeTypes: EdgeTypes = { chitra: ChitraEdge };
@@ -68,6 +71,7 @@ function CanvasInner({
   const cards = useProjectStore((s) => s.project?.cards ?? []);
   const project = useProjectStore((s) => s.project);
   const workspaceMode = useMode((s) => s.mode);
+  const airCleanBoard = useAirBoard((s) => s.cleanBoard) && workspaceMode === "air";
   const updateNodes = useProjectStore((s) => s.updateNodes);
   const updateNodeSize = useProjectStore((s) => s.updateNodeSize);
   const updateEdges = useProjectStore((s) => s.updateEdges);
@@ -204,9 +208,7 @@ function CanvasInner({
             ? Math.max(resolved.strokeWidth + 1.25, 2.5)
             : resolved.strokeWidth,
           strokeDasharray: resolved.dasharray,
-          filter: isSelected
-            ? `drop-shadow(0 0 6px ${resolved.stroke})`
-            : undefined,
+          filter: isSelected ? `drop-shadow(0 0 6px ${resolved.stroke})` : undefined,
         },
       };
     });
@@ -225,9 +227,7 @@ function CanvasInner({
       // another "dimensions" change, and lock the node into a permanent
       // `visibility: hidden` measurement loop (cards never appear on the
       // board).
-      const positionChanges = changes.filter(
-        (c) => c.type === "position" && c.position,
-      );
+      const positionChanges = changes.filter((c) => c.type === "position" && c.position);
       if (positionChanges.length > 0) {
         // Apply snap-to-node-edges to each in-flight position change so
         // the drag visibly clicks into alignment. Snapping happens on
@@ -243,7 +243,7 @@ function CanvasInner({
               width: me.width ?? undefined,
               height: me.height ?? undefined,
             },
-            others: (board?.nodes ?? []),
+            others: board?.nodes ?? [],
           });
           return { ...c, position: result.position };
         });
@@ -260,11 +260,7 @@ function CanvasInner({
       // mid-drag and false on the final settle — we only commit on the
       // final settle so undo rolls back the entire resize as one step.
       for (const change of changes) {
-        if (
-          change.type === "dimensions" &&
-          change.dimensions &&
-          change.resizing === false
-        ) {
+        if (change.type === "dimensions" && change.dimensions && change.resizing === false) {
           updateNodeSize(change.id, {
             width: change.dimensions.width,
             height: change.dimensions.height,
@@ -282,8 +278,8 @@ function CanvasInner({
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
       const next = applyEdgeChanges(changes, rfEdges);
-      updateEdges((domain) =>
-        domain.filter((e) => next.find((rfe) => rfe.id === e.id)) satisfies BoardEdge[],
+      updateEdges(
+        (domain) => domain.filter((e) => next.find((rfe) => rfe.id === e.id)) satisfies BoardEdge[],
       );
       for (const change of changes) {
         if (change.type === "remove") removeEdge(change.id);
@@ -308,14 +304,17 @@ function CanvasInner({
 
   /* -------- Drag from inbox -------- */
 
-  const onDragOver = useCallback((e: React.DragEvent) => {
-    // Always allow drop while a drag is in progress; we validate on drop.
-    // Some Electron/Chrome combos hide custom-MIME entries in `types` during
-    // dragover, which would prevent preventDefault from firing and break drop.
-    e.preventDefault();
-    e.dataTransfer.dropEffect = "move";
-    if (!isDragOver) setIsDragOver(true);
-  }, [isDragOver]);
+  const onDragOver = useCallback(
+    (e: React.DragEvent) => {
+      // Always allow drop while a drag is in progress; we validate on drop.
+      // Some Electron/Chrome combos hide custom-MIME entries in `types` during
+      // dragover, which would prevent preventDefault from firing and break drop.
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      if (!isDragOver) setIsDragOver(true);
+    },
+    [isDragOver],
+  );
 
   const onDragLeave = useCallback((e: React.DragEvent) => {
     // dragleave fires for every child crossing; check we've actually left
@@ -397,15 +396,16 @@ function CanvasInner({
     const missing = cards.filter((card) => !existingCardIds.has(card.id));
     if (missing.length === 0) return;
 
-    const base = rfInstance && wrapperRef.current
-      ? (() => {
-          const rect = wrapperRef.current.getBoundingClientRect();
-          return rfInstance.screenToFlowPosition({
-            x: rect.left + rect.width / 2,
-            y: rect.top + rect.height / 2,
-          });
-        })()
-      : { x: 0, y: 0 };
+    const base =
+      rfInstance && wrapperRef.current
+        ? (() => {
+            const rect = wrapperRef.current.getBoundingClientRect();
+            return rfInstance.screenToFlowPosition({
+              x: rect.left + rect.width / 2,
+              y: rect.top + rect.height / 2,
+            });
+          })()
+        : { x: 0, y: 0 };
 
     missing.forEach((card, index) => {
       const col = index % 3;
@@ -440,19 +440,14 @@ function CanvasInner({
 
   /* -------- Multi-selection: alignment, distribute, nudge -------- */
 
-  const onSelectionChange = useCallback(
-    (params: OnSelectionChangeParams) => {
-      const ids = params.nodes.map((n) => n.id);
-      // Avoid resetting state on identical selections (prevents wasteful
-      // toolbar re-renders during marquee drags).
-      setSelectedNodeIds((prev) =>
-        prev.length === ids.length && prev.every((id, i) => id === ids[i])
-          ? prev
-          : ids,
-      );
-    },
-    [],
-  );
+  const onSelectionChange = useCallback((params: OnSelectionChangeParams) => {
+    const ids = params.nodes.map((n) => n.id);
+    // Avoid resetting state on identical selections (prevents wasteful
+    // toolbar re-renders during marquee drags).
+    setSelectedNodeIds((prev) =>
+      prev.length === ids.length && prev.every((id, i) => id === ids[i]) ? prev : ids,
+    );
+  }, []);
 
   const runAlign = useCallback(
     (action: AlignAction) => {
@@ -471,22 +466,25 @@ function CanvasInner({
     if (selectedNodeIds.length === 0) return;
     const handler = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.isContentEditable)
-      )
-        return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       const step = e.shiftKey ? 10 : 1;
       let dx = 0;
       let dy = 0;
       switch (e.key) {
-        case "ArrowLeft": dx = -step; break;
-        case "ArrowRight": dx = step; break;
-        case "ArrowUp": dy = -step; break;
-        case "ArrowDown": dy = step; break;
-        default: return;
+        case "ArrowLeft":
+          dx = -step;
+          break;
+        case "ArrowRight":
+          dx = step;
+          break;
+        case "ArrowUp":
+          dy = -step;
+          break;
+        case "ArrowDown":
+          dy = step;
+          break;
+        default:
+          return;
       }
       e.preventDefault();
       const idSet = new Set(selectedNodeIds);
@@ -528,13 +526,7 @@ function CanvasInner({
   useEffect(() => {
     const handler = (e: KeyboardEvent): void => {
       const t = e.target as HTMLElement | null;
-      if (
-        t &&
-        (t.tagName === "INPUT" ||
-          t.tagName === "TEXTAREA" ||
-          t.isContentEditable)
-      )
-        return;
+      if (t && (t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.isContentEditable)) return;
       if ((e.key === "f" || e.key === "F") && !e.metaKey && !e.ctrlKey) {
         e.preventDefault();
         frameSelection();
@@ -560,12 +552,28 @@ function CanvasInner({
       onDrop={onDrop}
       onDoubleClick={(e) => {
         const target = e.target as HTMLElement;
-        if (target.closest(".react-flow__node, .react-flow__edge, .react-flow__controls, .react-flow__minimap")) return;
+        if (
+          target.closest(
+            ".react-flow__node, .react-flow__edge, .react-flow__controls, .react-flow__minimap",
+          )
+        )
+          return;
         if (target.closest(".react-flow")) onPaneDoubleClick(e);
       }}
     >
       <CanvasBackground background={board.background} />
       <ReactFlow
+        // Air Board wants a blank wall to draw on: air ink is low-contrast and
+        // hard to place over a busy board. Hidden via CSS rather than by
+        // unmounting, so React Flow keeps its viewport and nothing is lost when
+        // the mode is left.
+        //
+        // `opacity` rather than `visibility`: visibility is inherited and any
+        // descendant that sets `visibility: visible` — React Flow sets it on
+        // parts of the node renderer — pops back into view. Opacity composites
+        // the whole subtree and cannot be undone from inside it, while still
+        // preserving layout so React Flow keeps measuring its viewport.
+        style={airCleanBoard ? { opacity: 0, pointerEvents: "none" } : undefined}
         nodes={rfNodes}
         edges={rfEdges}
         nodeTypes={nodeTypes}
@@ -575,7 +583,12 @@ function CanvasInner({
         onConnect={onConnect}
         onDragOver={onDragOver}
         onDrop={onDrop}
-        onInit={setRfInstance}
+        onInit={(instance) => {
+          setRfInstance(instance);
+          // Air Board converts page coordinates to board positions through
+          // this instance when it spawns a card mid-air.
+          registerFlowApi(instance);
+        }}
         onNodeDragStart={() => pushHistory()}
         onNodeDrag={(_e, node) => {
           if (!board) return;
@@ -650,161 +663,177 @@ function CanvasInner({
       {/* Sketch overlay sits above React Flow; pointer-events gated by mode. */}
       <SketchOverlay />
 
+      {/* Air Board — camera-driven cursor and ink. Lazy so neither the
+          MediaPipe glue nor its 19 MB of assets touch a normal session. */}
+      {workspaceMode === "air" && <LazyAirBoard />}
+
       {/* Floating control strip — wraps on narrow viewports so the pills
           never overflow the canvas or overlap the title bar above. Hidden in
           sketch mode so it never collides with Excalidraw's own toolbars. */}
       {workspaceMode === "structure" && (
-      <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-center justify-center gap-2">
-        <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
-          {EDGE_KINDS.map((k) => {
-            const s = EDGE_STYLES[k];
-            const active = edgeKind === k;
-            return (
-              <button
-                key={k}
-                type="button"
-                onClick={() => setEdgeKind(k)}
-                className={[
-                  "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
-                  active
-                    ? "bg-white/10 text-[var(--color-ink)]"
-                    : "text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]",
-                ].join(" ")}
-                title={`Connection: ${s.label}`}
+        <div className="pointer-events-none absolute inset-x-3 top-3 z-10 flex flex-wrap items-center justify-center gap-2">
+          <div className="pointer-events-auto flex max-w-full flex-wrap items-center gap-1 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
+            {EDGE_KINDS.map((k) => {
+              const s = EDGE_STYLES[k];
+              const active = edgeKind === k;
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  onClick={() => setEdgeKind(k)}
+                  className={[
+                    "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
+                    active
+                      ? "bg-white/10 text-[var(--color-ink)]"
+                      : "text-[var(--color-ink-dim)] hover:bg-white/5 hover:text-[var(--color-ink)]",
+                  ].join(" ")}
+                  title={`Connection: ${s.label}`}
+                >
+                  <span
+                    className="inline-block h-[2px] w-3.5"
+                    style={{
+                      background: s.stroke,
+                      opacity: active ? 1 : 0.75,
+                    }}
+                  />
+                  <span className="leading-none">{s.label}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
+            <LayoutBtn
+              label="→"
+              title="Layout: left to right"
+              onClick={() => runAutoLayout("LR")}
+            />
+            <LayoutBtn
+              label="↓"
+              title="Layout: top to bottom"
+              onClick={() => runAutoLayout("TB")}
+            />
+            <LayoutBtn
+              label="←"
+              title="Layout: right to left"
+              onClick={() => runAutoLayout("RL")}
+            />
+            <LayoutBtn
+              label="↑"
+              title="Layout: bottom to top"
+              onClick={() => runAutoLayout("BT")}
+            />
+          </div>
+
+          <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
+            <LayoutBtn label="50%" title="Zoom to 50%" onClick={() => zoomTo(0.5)} />
+            <LayoutBtn label="100%" title="Zoom to 100%" onClick={() => zoomTo(1)} />
+            <LayoutBtn label="150%" title="Zoom to 150%" onClick={() => zoomTo(1.5)} />
+            <LayoutBtn label="200%" title="Zoom to 200%" onClick={() => zoomTo(2)} />
+            <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden="true" />
+            <LayoutBtn label="Fit" title="Fit all to view (Shift+1)" onClick={fitAll} />
+            <LayoutBtn label="Frame" title="Frame selection (F)" onClick={frameSelection} />
+            <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden="true" />
+            <LayoutBtn
+              label="+ Frame"
+              title="Add a frame container at the viewport centre"
+              onClick={() => {
+                if (!rfInstance) return;
+                const { x, y, zoom } = rfInstance.getViewport();
+                const w = window.innerWidth / 2;
+                const h = window.innerHeight / 2;
+                const center = { x: (w - x) / zoom - 180, y: (h - y) / zoom - 120 };
+                addFrame({ title: "Frame", position: center });
+              }}
+            />
+          </div>
+
+          <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => setShowBackgroundPanel((v) => !v)}
+              title="Customize canvas background"
+              className={[
+                "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
+                showBackgroundPanel
+                  ? "bg-white/10 text-[var(--color-ink)]"
+                  : "text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]",
+              ].join(" ")}
+            >
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
               >
-                <span
-                  className="inline-block h-[2px] w-3.5"
-                  style={{
-                    background: s.stroke,
-                    opacity: active ? 1 : 0.75,
-                  }}
-                />
-                <span className="leading-none">{s.label}</span>
-              </button>
-            );
-          })}
-        </div>
-
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
-          <LayoutBtn label="→" title="Layout: left to right" onClick={() => runAutoLayout("LR")} />
-          <LayoutBtn label="↓" title="Layout: top to bottom" onClick={() => runAutoLayout("TB")} />
-          <LayoutBtn label="←" title="Layout: right to left" onClick={() => runAutoLayout("RL")} />
-          <LayoutBtn label="↑" title="Layout: bottom to top" onClick={() => runAutoLayout("BT")} />
-        </div>
-
-        <div className="pointer-events-auto flex items-center gap-0.5 rounded-full border border-white/10 bg-[#0d0d14]/90 px-1.5 py-1 text-xs backdrop-blur-md">
-          <LayoutBtn label="50%" title="Zoom to 50%" onClick={() => zoomTo(0.5)} />
-          <LayoutBtn label="100%" title="Zoom to 100%" onClick={() => zoomTo(1)} />
-          <LayoutBtn label="150%" title="Zoom to 150%" onClick={() => zoomTo(1.5)} />
-          <LayoutBtn label="200%" title="Zoom to 200%" onClick={() => zoomTo(2)} />
-          <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden="true" />
-          <LayoutBtn label="Fit" title="Fit all to view (Shift+1)" onClick={fitAll} />
-          <LayoutBtn
-            label="Frame"
-            title="Frame selection (F)"
-            onClick={frameSelection}
-          />
-          <span className="mx-0.5 h-4 w-px bg-white/10" aria-hidden="true" />
-          <LayoutBtn
-            label="+ Frame"
-            title="Add a frame container at the viewport centre"
-            onClick={() => {
-              if (!rfInstance) return;
-              const { x, y, zoom } = rfInstance.getViewport();
-              const w = window.innerWidth / 2;
-              const h = window.innerHeight / 2;
-              const center = { x: (w - x) / zoom - 180, y: (h - y) / zoom - 120 };
-              addFrame({ title: "Frame", position: center });
-            }}
-          />
-        </div>
-
-        <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => setShowBackgroundPanel((v) => !v)}
-            title="Customize canvas background"
-            className={[
-              "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
-              showBackgroundPanel
-                ? "bg-white/10 text-[var(--color-ink)]"
-                : "text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]",
-            ].join(" ")}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+                <rect x="2" y="2" width="12" height="12" rx="2" />
+                <circle cx="6" cy="6" r="1.2" />
+                <path d="M14 11l-3-3-5 5" />
+              </svg>
+              <span className="leading-none">Background</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowThemeStudio((v) => !v)}
+              title="Theme Studio — palette, font, defaults"
+              className={[
+                "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
+                showThemeStudio
+                  ? "bg-white/10 text-[var(--color-ink)]"
+                  : "text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]",
+              ].join(" ")}
             >
-              <rect x="2" y="2" width="12" height="12" rx="2" />
-              <circle cx="6" cy="6" r="1.2" />
-              <path d="M14 11l-3-3-5 5" />
-            </svg>
-            <span className="leading-none">Background</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowThemeStudio((v) => !v)}
-            title="Theme Studio — palette, font, defaults"
-            className={[
-              "flex items-center gap-1.5 rounded-full px-2 py-0.5 transition",
-              showThemeStudio
-                ? "bg-white/10 text-[var(--color-ink)]"
-                : "text-[var(--color-ink-dim)] hover:bg-white/10 hover:text-[var(--color-ink)]",
-            ].join(" ")}
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <circle cx="8" cy="8" r="5.5" />
-              <path d="M8 2.5v11" />
-              <path d="M2.5 8h11" />
-            </svg>
-            <span className="leading-none">Theme</span>
-          </button>
-        </div>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <circle cx="8" cy="8" r="5.5" />
+                <path d="M8 2.5v11" />
+                <path d="M2.5 8h11" />
+              </svg>
+              <span className="leading-none">Theme</span>
+            </button>
+          </div>
 
-        <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
-          <button
-            type="button"
-            onClick={() => void handleExportDiagramPng()}
-            disabled={exportBusy || !project}
-            title="Export diagram as PNG"
-            className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[var(--color-ink-dim)] transition hover:bg-white/10 hover:text-[var(--color-ink)] disabled:opacity-40"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.6"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              aria-hidden="true"
+          <div className="pointer-events-auto flex items-center rounded-full border border-white/10 bg-[#0d0d14]/90 px-1 py-1 text-xs backdrop-blur-md">
+            <button
+              type="button"
+              onClick={() => void handleExportDiagramPng()}
+              disabled={exportBusy || !project}
+              title="Export diagram as PNG"
+              className="flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[var(--color-ink-dim)] transition hover:bg-white/10 hover:text-[var(--color-ink)] disabled:opacity-40"
             >
-              <path d="M8 2v8" />
-              <path d="M4.5 7l3.5 3.5L11.5 7" />
-              <path d="M3 13h10" />
-            </svg>
-            <span className="leading-none">{exportBusy ? "Exporting…" : "Export PNG"}</span>
-          </button>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 16 16"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M8 2v8" />
+                <path d="M4.5 7l3.5 3.5L11.5 7" />
+                <path d="M3 13h10" />
+              </svg>
+              <span className="leading-none">{exportBusy ? "Exporting…" : "Export PNG"}</span>
+            </button>
+          </div>
         </div>
-      </div>
       )}
 
       {board.nodes.length === 0 && workspaceMode === "structure" && (
@@ -824,7 +853,8 @@ function CanvasInner({
               </span>
               the empty area to spawn a new card here. Hover a card and click
               <span className="mx-1 rounded bg-white/5 px-1 py-0.5 text-[10px]">+ Canvas</span>
-              for a one-click add. Then drag between the dots on a card&rsquo;s edges to connect them.
+              for a one-click add. Then drag between the dots on a card&rsquo;s edges to connect
+              them.
             </p>
             {cards.length > 0 && (
               <button
@@ -862,10 +892,7 @@ function CanvasInner({
       {/* Connector style editor — appears at bottom-center when an edge is
           selected. Hidden in sketch mode where edges aren't interactive. */}
       {workspaceMode === "structure" && selectedEdgeId && (
-        <EdgeStylePanel
-          edgeId={selectedEdgeId}
-          onClose={() => setSelectedEdgeId(null)}
-        />
+        <EdgeStylePanel edgeId={selectedEdgeId} onClose={() => setSelectedEdgeId(null)} />
       )}
 
       {/* Background customizer — floating top-centre panel. */}
@@ -943,11 +970,7 @@ function autoHandlePair(
   // Bias so a small vertical offset doesn't flip from horizontal to vertical
   // routing — keeps stable picks while the user nudges nodes around.
   if (Math.abs(dx) >= Math.abs(dy)) {
-    return dx >= 0
-      ? { source: "r-src", target: "l-tgt" }
-      : { source: "l-src", target: "r-tgt" };
+    return dx >= 0 ? { source: "r-src", target: "l-tgt" } : { source: "l-src", target: "r-tgt" };
   }
-  return dy >= 0
-    ? { source: "b-src", target: "t-tgt" }
-    : { source: "t-src", target: "b-tgt" };
+  return dy >= 0 ? { source: "b-src", target: "t-tgt" } : { source: "t-src", target: "b-tgt" };
 }

@@ -1,0 +1,47 @@
+appId: org.tsecond.chitra
+productName: Chitra
+copyright: © T-Second Research
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - out/**/*
+  - package.json
+
+asarUnpack:
+  # MediaPipe's WASM runtime and the hand-landmark model are fetched at
+  # runtime; leaving them inside the asar archive makes them unreachable
+  # to the renderer's fetch of app://chitra/mediapipe/*.
+  - out/renderer/mediapipe/**
+
+win:
+  target:
+    - target: nsis
+      arch: [x64]
+  artifactName: ${productName}-${version}-setup.${ext}
+
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+
+mac:
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+  category: public.app-category.productivity
+  # Required on macOS 10.14+ — without a usage description the OS kills the
+  # process the moment Air Board touches the camera.
+  extendInfo:
+    NSCameraUsageDescription: >-
+      Chitra uses your camera for Air Board, which tracks your hand movements
+      so you can draw on the canvas in mid-air. Video is processed on your
+      machine and is never recorded or transmitted.
+
+linux:
+  target:
+    - target: AppImage
+      arch: [x64]
+  category: Office

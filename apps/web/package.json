@@ -12,12 +12,13 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@chitra/core": "workspace:*",
     "@chitra/composer": "workspace:*",
-    "@chitra/templates": "workspace:*",
+    "@chitra/core": "workspace:*",
     "@chitra/exports": "workspace:*",
+    "@chitra/templates": "workspace:*",
     "@dagrejs/dagre": "1.1.4",
     "@excalidraw/excalidraw": "0.17.6",
+    "@mediapipe/tasks-vision": "1.0.0",
     "@xyflow/react": "12.3.2",
     "cmdk": "1.0.4",
     "docx": "8.5.0",

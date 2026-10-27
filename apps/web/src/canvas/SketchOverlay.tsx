@@ -6,6 +6,7 @@ import type {
 } from "@excalidraw/excalidraw/types/types";
 import { useCurrentBoard, useProjectStore } from "../state/projectStore.js";
 import { useMode } from "../state/mode.js";
+import { registerSketchApi } from "../airboard/sketchBridge.js";
 
 /**
  * Excalidraw overlay sitting on top of the React Flow canvas.
@@ -64,11 +65,17 @@ export function SketchOverlay(): JSX.Element | null {
     });
   }, [board?.id, initial]);
 
+  // Drop the registration when this overlay unmounts so Air Board doesn't
+  // write into a dead scene.
+  useEffect(() => () => registerSketchApi(null), []);
+
   if (!board) return null;
   // Only mount Excalidraw if the user has entered sketch mode at least once
   // OR the board already has sketch data — keeps the heavy chunk lazy.
+  // Air Board commits its strokes into this same scene, so it needs the
+  // overlay mounted too (in view mode — the air cursor isn't a pointer).
   const hasSketch = !!board.sketch && Object.keys(board.sketch).length > 0;
-  if (mode !== "sketch" && !hasSketch) return null;
+  if (mode !== "sketch" && mode !== "air" && !hasSketch) return null;
 
   return (
     <div
@@ -85,6 +92,7 @@ export function SketchOverlay(): JSX.Element | null {
       <LazyExcalidraw
         excalidrawAPI={(api: ExcalidrawImperativeAPI) => {
           apiRef.current = api;
+          registerSketchApi(api);
         }}
         initialData={initial()}
         viewModeEnabled={mode !== "sketch"}

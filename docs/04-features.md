@@ -39,6 +39,13 @@ Powered by **React Flow** (`@xyflow/react`).
 - **Frame nodes** — titled containers for grouping.
 - **Sketch overlay** — lazy-loaded Excalidraw layer for hand-drawn
   annotation that lives inside the same project.
+- **Air Board** — a third mode (`Ctrl+3`) where the webcam tracks the
+  user's hand and the fingertip becomes the cursor. Pinch to draw,
+  gestures for tools, freehand strokes recognised into clean shapes,
+  and a calibration wizard that fits every threshold to the individual
+  user's hand. Ink lands in the same Excalidraw sketch layer, so it is
+  editable, savable and exportable like any other drawing. See
+  [11-air-board.md](11-air-board.md).
 
 ### Edge semantics
 

@@ -64,10 +64,14 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
         // Excalidraw vendor chunks are large and lazy-loaded; runtime-cache only.
+        // Same for the MediaPipe runtime + hand model (~19 MB): precaching them
+        // would make every first load pay for a feature most sessions never
+        // open, so they're fetched on demand and cached permanently after.
         globIgnores: [
           "**/excalidraw-assets/**",
           "**/excalidraw-assets-dev/**",
           "**/assets/excalidraw-*.js",
+          "**/mediapipe/**",
         ],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
@@ -83,6 +87,18 @@ export default defineConfig({
             urlPattern: /\/assets\/excalidraw-.*\.js$/i,
             handler: "CacheFirst",
             options: { cacheName: "excalidraw-chunk" },
+          },
+          {
+            // Air Board's WASM runtime and hand-landmark model. Cache-first
+            // and effectively permanent — they're versioned by filename and
+            // re-downloading 19 MB on a flaky connection is unacceptable.
+            urlPattern: /\/mediapipe\/.*\.(wasm|js|task|binarypb)$/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "airboard-vision",
+              expiration: { maxEntries: 12, maxAgeSeconds: 60 * 60 * 24 * 180 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
           {
             urlPattern: /^https:\/\/rsms\.me\//i,

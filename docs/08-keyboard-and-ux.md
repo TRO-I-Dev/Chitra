@@ -30,6 +30,32 @@ Owned by `views/Workspace.tsx` and the canvas:
 | `Cmd/Ctrl + D` | Duplicate selection |
 | Arrow keys | Nudge selected nodes |
 | `Shift + drag` | Multi-select |
+| `Cmd/Ctrl + 1` | **Structure** mode |
+| `Cmd/Ctrl + 2` | **Sketch** mode |
+| `Cmd/Ctrl + 3` | **Air Board** mode (camera hand tracking) |
+
+### Air Board
+
+While Air Board is active (see [11-air-board.md](11-air-board.md)):
+
+| Input | Action |
+|---|---|
+| `R` | Toggle the radial tool ring |
+| `Esc` | Close the tool ring |
+| **Open palm** | Open the tool ring; move to browse it |
+| **Fist** | Choose the highlighted option |
+| **Point** (index finger) | Draw at the fingertip |
+| Pinch (thumb+index) | Draw — steadier alternative to pointing |
+| Middle pinch | Erase |
+| Two fingers | Pan the sketch scene |
+| Thumbs up | Force shape snapping on the current stroke |
+| L shape | Undo the last air-committed element |
+| Hold cursor still | Dwell click — a fist-free confirm |
+
+The loop is **open palm → browse → close fist → chosen → point to draw**.
+
+Every gesture above is remappable, and the defaults are only defaults
+until the user runs calibration.
 
 ## 8.3 Command Palette
 
